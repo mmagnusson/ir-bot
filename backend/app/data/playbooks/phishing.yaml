@@ -1,0 +1,155 @@
+# Phishing Incident Response Playbook
+# This defines the procedural steps for handling phishing incidents
+
+incident_type: phishing
+
+phases:
+  intake:
+    description: "Initial triage and information gathering"
+    required_fields:
+      - reporting_user_email
+      - user_clicked
+      - attachment_opened
+      - credentials_entered
+      - time_of_report
+
+    initial_questions:
+      - "Did the user click any links in the email?"
+      - "Did the user open any attachments?"
+      - "Did the user enter credentials on any website?"
+      - "Are email headers available for analysis?"
+
+  investigation:
+    description: "Determine scope and impact"
+
+    conditions:
+      user_clicked_yes:
+        triggers_when:
+          user_clicked: "yes"
+        investigation_steps:
+          - "Review authentication logs for the reporting user"
+          - "Check for sign-ins from new IPs or unusual locations"
+          - "Verify MFA status on the user's account"
+          - "Search user's inbox for similar phishing messages"
+          - "Check if the URL is on any threat intelligence feeds"
+
+      credentials_entered_yes:
+        triggers_when:
+          credentials_entered: "yes"
+        investigation_steps:
+          - "Identify all accounts using the same credentials"
+          - "Review recent account activity across all services"
+          - "Check for password reuse across corporate accounts"
+          - "Look for unauthorized access or data exfiltration"
+          - "Verify if MFA prevented unauthorized access"
+
+      attachment_opened_yes:
+        triggers_when:
+          attachment_opened: "yes"
+        investigation_steps:
+          - "Obtain file hash and check against threat databases"
+          - "Scan the endpoint with EDR/antivirus"
+          - "Review process execution logs on affected endpoint"
+          - "Check for suspicious network connections from the endpoint"
+          - "Isolate endpoint if malware execution is suspected"
+
+      headers_available_yes:
+        triggers_when:
+          headers_available: true
+        investigation_steps:
+          - "Analyze sender reputation and SPF/DKIM/DMARC results"
+          - "Extract sender IP and check geolocation"
+          - "Search for similar emails across organization"
+          - "Identify other recipients of the same campaign"
+
+  containment:
+    description: "Actions to prevent further damage"
+
+    conditions:
+      credentials_compromised:
+        triggers_when:
+          credential_submission_confirmed: "yes"
+        containment_actions:
+          - "Force immediate password reset"
+          - "Revoke all active sessions"
+          - "Reset MFA tokens if applicable"
+          - "Enable account monitoring"
+          - "Notify user of compromise"
+
+      attachment_malicious:
+        triggers_when:
+          attachment_opened: "yes"
+        containment_actions:
+          - "Isolate affected endpoint from network"
+          - "Disable user account temporarily"
+          - "Block malicious hash at email gateway"
+          - "Quarantine similar attachments"
+
+      widespread_campaign:
+        triggers_when:
+          other_affected_users: "yes"
+        containment_actions:
+          - "Block sender domain/email at email gateway"
+          - "Create transport rule to quarantine similar emails"
+          - "Search and purge emails from all mailboxes"
+          - "Send organization-wide alert"
+
+  remediation:
+    description: "Cleanup and recovery actions"
+
+    standard_steps:
+      - "Remove phishing email from affected mailboxes"
+      - "Block sender domain/IP at email gateway"
+      - "Update email filtering rules"
+      - "Document indicators of compromise (IOCs)"
+      - "Share IOCs with threat intelligence platform"
+
+    user_education:
+      - "Send targeted phishing awareness reminder to affected users"
+      - "Schedule follow-up security awareness training"
+      - "Update phishing reporting procedures if needed"
+
+  closure:
+    description: "Final documentation and lessons learned"
+
+    required_documentation:
+      - "Timeline of events"
+      - "All actions taken"
+      - "Affected users and systems"
+      - "IOCs identified"
+      - "Residual risks"
+      - "Recommended follow-up actions"
+
+# Risk Assessment Criteria
+risk_factors:
+  high_risk:
+    - credentials_entered: "yes"
+    - attachment_opened: "yes"
+    - mfa_enabled: "no"
+    - suspicious_signins_observed: "yes"
+
+  medium_risk:
+    - user_clicked: "yes"
+    - credentials_entered: "unknown"
+    - other_affected_users: "yes"
+
+  low_risk:
+    - user_clicked: "no"
+    - attachment_opened: "no"
+    - credentials_entered: "no"
+
+# Escalation Criteria
+escalation:
+  immediate:
+    - "Confirmed account compromise with active unauthorized access"
+    - "Malware execution detected"
+    - "Data exfiltration suspected"
+
+  standard:
+    - "Credentials entered but MFA prevented access"
+    - "Multiple users affected (>10)"
+    - "Executive or high-privilege account targeted"
+
+  low_priority:
+    - "No user interaction with phishing email"
+    - "Email caught by filters before delivery"

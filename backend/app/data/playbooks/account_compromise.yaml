@@ -1,0 +1,223 @@
+# Account Compromise Incident Response Playbook
+# Based on MITRE ATT&CK T1114 (Email Compromise) and T1110.003 (Password Spraying)
+
+incident_type: account_compromise
+
+mitre_attack:
+  tactics:
+    - "Initial Access"
+    - "Credential Access"
+    - "Collection"
+  techniques:
+    - "T1114 - Email Collection"
+    - "T1110.003 - Password Spraying"
+    - "T1078 - Valid Accounts"
+
+phases:
+  intake:
+    description: "Initial triage of compromised account"
+    required_fields:
+      - affected_user_email
+      - unauthorized_access_detected
+      - suspicious_activities
+      - time_of_detection
+
+    initial_questions:
+      - "What suspicious activities were observed?"
+      - "Are there unauthorized logins from unusual locations?"
+      - "Has the user reported losing access to their account?"
+      - "Are there suspicious email rules or forwards?"
+      - "Was MFA configured on this account?"
+
+  investigation:
+    description: "Determine compromise scope and attacker actions"
+
+    conditions:
+      unauthorized_access_confirmed:
+        triggers_when:
+          unauthorized_access_detected: "yes"
+        investigation_steps:
+          - "Review authentication logs for the affected account"
+          - "Identify all login locations (IP addresses and geolocations)"
+          - "Check for impossible travel scenarios"
+          - "Review MFA challenges and responses"
+          - "Identify time range of unauthorized access"
+          - "Check for concurrent sessions from multiple locations"
+          - "Review user agent strings for anomalies"
+          - "Correlate with VPN logs if applicable"
+
+      email_compromise_indicators:
+        investigation_steps:
+          - "Check for new email forwarding rules"
+          - "Review inbox rules for message deletion or forwarding"
+          - "Inspect sent items for phishing/spam messages"
+          - "Check for unusual email access patterns"
+          - "Review mailbox delegation settings"
+          - "Check for OAuth application consents"
+          - "Review calendar invites sent by the account"
+          - "Check for email exports or bulk downloads"
+
+      credential_theft_vector:
+        investigation_steps:
+          - "Determine how credentials were obtained:"
+          - "  - Phishing email clicked by user?"
+          - "  - Password spraying attack?"
+          - "  - Credential stuffing from data breach?"
+          - "  - Malware/keylogger on user's device?"
+          - "  - Insider threat?"
+          - "Review failed authentication attempts before success"
+          - "Check for brute force patterns"
+          - "Analyze password complexity and reuse"
+
+      lateral_access_check:
+        investigation_steps:
+          - "Identify other accounts accessed from compromised account"
+          - "Review file access and downloads"
+          - "Check for privilege escalation attempts"
+          - "Review cloud application access (Office 365, Google, etc.)"
+          - "Check for changes to security settings"
+          - "Review admin actions if privileged account"
+
+  containment:
+    description: "Lock down compromised account and prevent further damage"
+
+    conditions:
+      active_compromise:
+        triggers_when:
+          unauthorized_access_detected: "yes"
+        containment_actions:
+          - "Force immediate password reset for affected account"
+          - "Revoke all active sessions immediately"
+          - "Disable account temporarily if active unauthorized access"
+          - "Remove suspicious email forwarding rules"
+          - "Delete malicious inbox rules"
+          - "Revoke suspicious OAuth application consents"
+          - "Reset MFA tokens/devices"
+          - "Block source IPs if identified as malicious"
+          - "Enable conditional access policies"
+
+      privilege_account_compromise:
+        triggers_when:
+          account_type: "admin"
+        containment_actions:
+          - "Immediately disable admin account"
+          - "Reset all privileged account passwords"
+          - "Review and revoke admin role assignments"
+          - "Check for creation of backdoor accounts"
+          - "Audit changes made during compromise window"
+          - "Notify security team and management immediately"
+
+      multi_account_compromise:
+        containment_actions:
+          - "Force password reset organization-wide if password spraying"
+          - "Implement temporary conditional access restrictions"
+          - "Enable enhanced monitoring on all accounts"
+          - "Review and lockdown service accounts"
+
+  remediation:
+    description: "Recover account and prevent recurrence"
+
+    standard_steps:
+      - "User must reset password from trusted device"
+      - "Enforce strong password requirements"
+      - "Enable MFA if not already active (MANDATORY)"
+      - "Re-register MFA devices from scratch"
+      - "Remove all email rules created during compromise"
+      - "Review and remove suspicious mailbox delegates"
+      - "Check for emails sent during compromise (recall if possible)"
+      - "Scan user's devices for malware"
+      - "Review data accessed and notify affected parties if needed"
+      - "Update security questions/account recovery options"
+
+    user_communication:
+      - "Notify user of compromise and remediation steps"
+      - "Provide guidance on recognizing phishing"
+      - "Instruct on secure password practices"
+      - "Explain importance of MFA"
+      - "Request reporting of any further suspicious activity"
+
+    organizational_actions:
+      - "Review and strengthen authentication policies"
+      - "Deploy advanced threat protection for email"
+      - "Implement user behavior analytics (UBA)"
+      - "Enhance phishing awareness training"
+      - "Consider implementing FIDO2/WebAuthn"
+
+  closure:
+    description: "Final documentation and prevention"
+
+    required_documentation:
+      - "Account(s) compromised and timeline"
+      - "Method of compromise (phishing, spray, etc.)"
+      - "Unauthorized access locations and times"
+      - "Actions taken by attacker"
+      - "Data accessed or exfiltrated"
+      - "Remediation steps completed"
+      - "User notification and training provided"
+
+    compliance_requirements:
+      - "Determine if data breach notification required"
+      - "Document for compliance audits (SOX, HIPAA, etc.)"
+      - "Report to appropriate authorities if PII compromised"
+
+# Risk Assessment Criteria
+risk_factors:
+  critical_risk:
+    - account_type: "admin"
+    - data_exfiltrated: "yes"
+    - mfa_bypassed: "yes"
+    - multiple_accounts_compromised: "yes"
+
+  high_risk:
+    - unauthorized_access_detected: "yes"
+    - mfa_enabled: "no"
+    - sensitive_data_accessed: "yes"
+    - privilege_escalation_attempted: "yes"
+
+  medium_risk:
+    - unauthorized_access_detected: "yes"
+    - mfa_enabled: "yes"
+    - limited_data_accessed: "yes"
+
+  low_risk:
+    - account_locked_before_access: "yes"
+    - failed_login_attempts_only: "yes"
+
+# Escalation Criteria
+escalation:
+  immediate:
+    - "Admin/privileged account compromised"
+    - "Data exfiltration confirmed"
+    - "MFA bypass technique identified"
+    - "Active unauthorized access ongoing"
+    - "Regulatory notification threshold met"
+
+  standard:
+    - "Multiple user accounts affected"
+    - "Cloud admin console accessed"
+    - "Sensitive data potentially accessed"
+    - "Email used for further attacks"
+
+  low_priority:
+    - "Single account, quickly contained"
+    - "No data access detected"
+    - "MFA blocked unauthorized access"
+
+# Password Spraying Detection
+password_spraying_indicators:
+  - "Single password attempted across many accounts"
+  - "Failed logins spread across time to avoid lockout"
+  - "Consistent user agent across failed attempts"
+  - "Low volume of attempts per account"
+  - "Attempts from single IP or IP range"
+
+# MFA Best Practices
+mfa_recommendations:
+  avoid:
+    - "SMS-based MFA (SIM swapping risk)"
+    - "Email-based verification only"
+  recommended:
+    - "Authenticator apps (Microsoft/Google Authenticator)"
+    - "FIDO2 hardware tokens"
+    - "Biometric authentication"
+    - "Certificate-based authentication"

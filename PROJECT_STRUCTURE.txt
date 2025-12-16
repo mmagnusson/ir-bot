@@ -1,0 +1,228 @@
+IR AI ASSISTANT - COMPLETE PROJECT STRUCTURE
+==============================================
+
+ir-ai-assistant/
+│
+├── README.md                          # Main documentation and user guide
+├── QUICK_START.md                     # 5-minute setup guide
+├── PROJECT_SUMMARY.md                 # Project overview and checklist
+├── LICENSE                            # MIT License
+├── .gitignore                         # Git ignore rules
+│
+├── backend/                           # Python FastAPI Backend
+│   ├── .env.example                   # Environment variable template
+│   ├── requirements.txt               # Python dependencies
+│   │
+│   └── app/                           # Application code
+│       ├── __init__.py
+│       ├── main.py                    # FastAPI entry point
+│       │
+│       ├── api/                       # API endpoints
+│       │   ├── __init__.py
+│       │   ├── incidents.py           # Incident CRUD and AI endpoints
+│       │   └── ai.py                  # AI service wrapper (Claude)
+│       │
+│       ├── models/                    # Data models
+│       │   ├── __init__.py
+│       │   └── incident.py            # Pydantic models for incidents
+│       │
+│       ├── services/                  # Business logic
+│       │   ├── __init__.py
+│       │   ├── prompt_builder.py      # Controlled prompt construction
+│       │   └── decision_logic.py      # Playbook-based guardrails
+│       │
+│       └── data/                      # Data files
+│           └── playbooks/
+│               └── phishing.yaml      # Phishing IR playbook
+│
+├── frontend/                          # React TypeScript Frontend
+│   ├── .env.example                   # Environment variable template
+│   ├── package.json                   # Node dependencies
+│   ├── tsconfig.json                  # TypeScript configuration
+│   ├── tsconfig.node.json             # TypeScript node config
+│   ├── vite.config.ts                 # Vite build configuration
+│   ├── index.html                     # HTML entry point
+│   │
+│   └── src/                           # Source code
+│       ├── main.tsx                   # React entry point
+│       ├── App.tsx                    # Main application component
+│       ├── App.css                    # Application styles
+│       ├── vite-env.d.ts              # TypeScript declarations
+│       │
+│       ├── api/                       # API integration
+│       │   └── client.ts              # Type-safe API client
+│       │
+│       ├── components/                # Reusable components
+│       │   └── Checklist.tsx          # Checklist component
+│       │
+│       └── pages/                     # Page components
+│           ├── IntakeForm.tsx         # Initial triage intake form
+│           ├── Investigation.tsx      # Investigation workflow
+│           ├── Containment.tsx        # Containment & remediation
+│           └── Summary.tsx            # Final summary & export
+│
+├── docs/                              # Documentation
+│   ├── mvp-scope.md                   # MVP goals and limitations
+│   ├── threat-model.md                # Security considerations
+│   ├── limitations.md                 # Known limitations
+│   └── deployment.md                  # Deployment guide
+│
+└── prompts/                           # AI prompt templates
+    ├── system.txt                     # System prompt for AI
+    └── phishing_flow.txt              # Phishing workflow reference
+
+
+KEY FILE PURPOSES
+=================
+
+Backend Core:
+  main.py            - FastAPI app, CORS, routes
+  incident.py        - Data models (Pydantic schemas)
+  incidents.py       - API endpoints for incident operations
+  ai.py              - Claude API wrapper
+  prompt_builder.py  - Safe prompt construction
+  decision_logic.py  - Playbook validation & guardrails
+  phishing.yaml      - Investigation procedures & rules
+
+Frontend Core:
+  IntakeForm.tsx     - Collects incident details
+  Investigation.tsx  - Shows AI assessment, updates findings
+  Containment.tsx    - Shows containment guidance
+  Summary.tsx        - Final report with export
+  Checklist.tsx      - Reusable checklist component
+  client.ts          - API communication layer
+
+Documentation:
+  README.md          - Complete user guide
+  QUICK_START.md     - Fast setup instructions
+  PROJECT_SUMMARY.md - Project overview
+  mvp-scope.md       - What this does/doesn't do
+  threat-model.md    - Security considerations
+  limitations.md     - Known constraints
+  deployment.md      - Production deployment guide
+
+
+WORKFLOW PATH THROUGH CODE
+===========================
+
+1. User fills IntakeForm.tsx
+   └─> POST /api/incidents/ (incidents.py)
+       └─> Creates IncidentState (incident.py)
+           └─> Validates with decision_logic.py
+               └─> Stores in incidents_db
+
+2. User runs assessment in Investigation.tsx
+   └─> POST /api/incidents/{id}/assess (incidents.py)
+       └─> prompt_builder.py creates structured prompt
+           └─> ai.py calls Claude API
+               └─> Parses response
+                   └─> decision_logic.py validates recommendations
+                       └─> Returns assessment with risk level
+
+3. User updates findings in Investigation.tsx
+   └─> PUT /api/incidents/{id} (incidents.py)
+       └─> Updates IncidentState
+           └─> Validates with decision_logic.py
+
+4. User gets containment in Containment.tsx
+   └─> POST /api/incidents/{id}/containment (incidents.py)
+       └─> prompt_builder.py creates containment prompt
+           └─> ai.py calls Claude API
+               └─> decision_logic.py validates actions
+                   └─> Returns playbook + AI guidance
+
+5. User exports summary in Summary.tsx
+   └─> GET /api/incidents/{id}/export (incidents.py)
+       └─> Generates final report
+           └─> Returns IncidentSummaryExport
+
+
+DATA FLOW
+=========
+
+User Input → Structured Form → Pydantic Validation → JSON Object
+                                                           ↓
+AI Response ← Claude API ← Controlled Prompt ← prompt_builder.py
+     ↓
+Parsed Sections → Validated Against Playbook → Combined with Playbook Steps
+                                                         ↓
+                                            Presented to Analyst
+
+
+TECHNOLOGY STACK
+================
+
+Backend:
+  - FastAPI (Web framework)
+  - Pydantic (Data validation)
+  - Anthropic Claude (AI/LLM)
+  - PyYAML (Playbook parsing)
+  - Uvicorn (ASGI server)
+
+Frontend:
+  - React 18 (UI framework)
+  - TypeScript (Type safety)
+  - Vite (Build tool)
+  - React Router (Navigation)
+  - Axios (HTTP client)
+
+
+GETTING STARTED
+===============
+
+1. Read:    QUICK_START.md (5 min setup)
+2. Run:     Backend + Frontend
+3. Test:    Create sample phishing incident
+4. Explore: Try the full workflow
+5. Extend:  Customize playbooks, add features
+
+
+CUSTOMIZATION POINTS
+====================
+
+Easy:
+  - Edit phishing.yaml (investigation steps)
+  - Modify prompts/system.txt (AI behavior)
+  - Adjust App.css (styling)
+  - Add form fields in IntakeForm.tsx
+
+Medium:
+  - Add new incident types
+  - Customize risk assessment logic
+  - Add new API endpoints
+  - Create new UI components
+
+Advanced:
+  - Add database persistence
+  - Implement authentication
+  - Integrate with security tools
+  - Add real-time collaboration
+
+
+NEXT STEPS
+==========
+
+For Development:
+  1. Follow QUICK_START.md
+  2. Review README.md
+  3. Explore the code
+  4. Customize playbooks
+
+For Production:
+  1. Read docs/deployment.md
+  2. Implement authentication
+  3. Add database
+  4. Set up monitoring
+  5. Security hardening
+
+For Extension:
+  1. Study docs/mvp-scope.md
+  2. Add new incident types
+  3. Build integrations
+  4. Enhance AI capabilities
+
+
+PROJECT COMPLETE ✓
+==================
+
+All files created and ready to use!

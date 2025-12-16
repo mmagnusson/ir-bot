@@ -1,0 +1,182 @@
+# Ransomware Incident Response Playbook
+# Based on MITRE ATT&CK T1486 and industry best practices
+
+incident_type: ransomware
+
+mitre_attack:
+  tactics:
+    - "Impact"
+    - "Execution"
+    - "Persistence"
+  techniques:
+    - "T1486 - Data Encrypted for Impact"
+    - "T1490 - Inhibit System Recovery"
+    - "T1489 - Service Stop"
+
+phases:
+  intake:
+    description: "Immediate triage during active ransomware incident"
+    required_fields:
+      - reporting_user_email
+      - files_encrypted
+      - ransom_note_present
+      - time_of_detection
+
+    initial_questions:
+      - "Are files currently being encrypted?"
+      - "Is a ransom note present? What does it say?"
+      - "What is the file extension on encrypted files?"
+      - "Are backups accessible and unaffected?"
+      - "Is this affecting multiple systems?"
+
+  investigation:
+    description: "Identify ransomware variant and infection scope"
+
+    conditions:
+      active_encryption:
+        triggers_when:
+          files_encrypted: "yes"
+        investigation_steps:
+          - "Identify ransomware variant from file extensions and ransom note"
+          - "Use ID Ransomware or No More Ransom to identify variant"
+          - "Determine encryption start time from file timestamps"
+          - "Map the scope: which systems, shares, and data are affected"
+          - "Check if shadow copies/VSS were deleted"
+          - "Review backup status and integrity"
+          - "Identify initial infection vector (phishing, RDP, vulnerability)"
+          - "Check for data exfiltration before encryption"
+          - "Review authentication logs for lateral movement"
+
+      ransom_note_analysis:
+        triggers_when:
+          ransom_note_present: "yes"
+        investigation_steps:
+          - "Document ransom amount and payment method"
+          - "Note contact information provided"
+          - "Screenshot ransom note for documentation"
+          - "Check for countdown timers or deadlines"
+          - "Research known decryptors for identified variant"
+
+      network_spread:
+        investigation_steps:
+          - "Scan network for other infected systems"
+          - "Check for lateral movement indicators"
+          - "Review SMB/RDP access logs"
+          - "Identify compromised domain accounts"
+          - "Map affected network shares and file servers"
+
+  containment:
+    description: "Stop the spread and prevent further encryption"
+
+    conditions:
+      active_incident:
+        triggers_when:
+          files_encrypted: "yes"
+        containment_actions:
+          - "IMMEDIATELY isolate all affected systems from network"
+          - "Disable network adapters on infected endpoints"
+          - "Disconnect backup systems and network storage"
+          - "Power off systems if encryption is actively occurring"
+          - "Block C2 communication at firewall/proxy"
+          - "Disable compromised user accounts"
+          - "Disable domain admin accounts if compromised"
+          - "Segment network to prevent lateral spread"
+
+      backup_protection:
+        containment_actions:
+          - "Verify backup systems are isolated and secure"
+          - "Take offline backups offline if not already"
+          - "Prevent backup deletion/encryption"
+          - "Create forensic images of affected systems"
+
+  remediation:
+    description: "Recovery and system restoration"
+
+    standard_steps:
+      - "DO NOT pay ransom without executive/legal approval"
+      - "Check No More Ransom Project for free decryptors"
+      - "Attempt decryption ONLY if reliable decryptor available"
+      - "Restore from clean, verified backups (preferred method)"
+      - "Rebuild infected systems from scratch if no backups"
+      - "Reset ALL user and service account passwords"
+      - "Reset domain admin and privileged account credentials"
+      - "Patch all systems before returning to production"
+      - "Implement application whitelisting where possible"
+      - "Enable and test backups before reconnecting"
+      - "Monitor restored systems for 7-14 days for re-infection"
+
+    recovery_priority:
+      - "Restore critical business systems first"
+      - "Validate data integrity before declaring restored"
+      - "Test system functionality before production use"
+      - "Gradually reconnect to network with monitoring"
+
+  closure:
+    description: "Post-incident activities and prevention"
+
+    required_documentation:
+      - "Ransomware variant and IOCs"
+      - "Infection timeline and scope"
+      - "Systems affected and data encrypted"
+      - "Ransom demand details"
+      - "Recovery method used"
+      - "Data loss assessment"
+      - "Total downtime and business impact"
+      - "Law enforcement notification (required in many jurisdictions)"
+
+    prevention_recommendations:
+      - "Implement 3-2-1 backup strategy (3 copies, 2 media, 1 offsite)"
+      - "Enable offline/immutable backups"
+      - "Deploy EDR on all endpoints"
+      - "Implement network segmentation"
+      - "Disable RDP or require VPN/MFA"
+      - "Apply principle of least privilege"
+      - "Regular backup testing and validation"
+      - "User security awareness training"
+
+# Risk Assessment Criteria
+risk_factors:
+  critical_risk:
+    - files_encrypted: "yes"
+    - backups_affected: "yes"
+    - spread_to_other_systems: "yes"
+    - data_exfiltration_before_encryption: "yes"
+
+  high_risk:
+    - files_encrypted: "yes"
+    - backups_affected: "no"
+    - domain_admin_compromised: "yes"
+
+  medium_risk:
+    - files_encrypted: "yes"
+    - backups_available: "yes"
+    - single_system_affected: "yes"
+
+# Escalation Criteria
+escalation:
+  immediate:
+    - "Active encryption in progress"
+    - "Backups compromised or deleted"
+    - "Critical business systems affected"
+    - "Data exfiltration detected"
+    - "Demands exceed organizational threshold"
+
+  standard:
+    - "Multiple systems affected"
+    - "Backup restore time exceeds RTO"
+    - "Unknown ransomware variant"
+
+# Law Enforcement Notification
+law_enforcement:
+  required:
+    - "FBI IC3 (www.ic3.gov)"
+    - "US-CERT (us-cert.cisa.gov)"
+    - "Local FBI field office"
+  optional:
+    - "Secret Service (for financial sector)"
+    - "State/local law enforcement"
+
+  do_not_negotiate_without:
+    - "Legal counsel consultation"
+    - "Executive leadership approval"
+    - "Law enforcement notification"

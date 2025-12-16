@@ -1,0 +1,131 @@
+PHISHING INCIDENT RESPONSE FLOW
+
+This document outlines the expected flow and decision points for phishing incident investigation.
+
+=== PHASE 1: INITIAL TRIAGE ===
+
+Collect:
+- Reporting user email
+- User interaction level (clicked link? opened attachment? entered credentials?)
+- Time of report
+- Email headers availability
+- Observable indicators (URLs, hashes, sender info)
+
+Assessment Questions:
+- What did the user do?
+- What evidence is available?
+- What is the potential impact?
+
+=== PHASE 2: INVESTIGATION ===
+
+Based on user actions, investigate:
+
+IF user clicked link:
+- Review authentication logs for the user
+- Check for sign-ins from new IPs or unusual locations
+- Verify MFA status on the account
+- Search inbox for similar phishing messages
+- Check URL against threat intelligence
+
+IF credentials entered:
+- Identify all accounts using the same credentials
+- Review recent account activity
+- Check for password reuse
+- Look for unauthorized access
+- Verify if MFA prevented access
+
+IF attachment opened:
+- Obtain file hash and check against threat databases
+- Scan endpoint with EDR/antivirus
+- Review process execution logs
+- Check for suspicious network connections
+- Consider endpoint isolation
+
+IF headers available:
+- Analyze sender reputation (SPF/DKIM/DMARC)
+- Extract and geolocate sender IP
+- Search for similar emails across organization
+- Identify other recipients
+
+Update incident with findings.
+
+=== PHASE 3: CONTAINMENT ===
+
+Based on findings, take containment actions:
+
+IF credentials compromised:
+- Force immediate password reset
+- Revoke all active sessions
+- Reset MFA tokens if applicable
+- Enable account monitoring
+- Notify user
+
+IF malicious attachment executed:
+- Isolate endpoint from network
+- Disable user account temporarily
+- Block malicious hash at email gateway
+- Quarantine similar attachments
+
+IF widespread campaign:
+- Block sender domain/email
+- Create transport rules to quarantine
+- Search and purge from all mailboxes
+- Send organization-wide alert
+
+=== PHASE 4: REMEDIATION ===
+
+Standard steps:
+- Remove phishing email from mailboxes
+- Block sender at email gateway
+- Update filtering rules
+- Document IOCs
+- Share IOCs with threat intel platform
+
+User education:
+- Send phishing awareness reminder
+- Schedule follow-up training
+- Update reporting procedures if needed
+
+=== PHASE 5: CLOSURE ===
+
+Document:
+- Timeline of events
+- All actions taken
+- Affected users and systems
+- IOCs identified
+- Residual risks
+- Recommended follow-ups
+
+=== RISK ASSESSMENT CRITERIA ===
+
+HIGH RISK:
+- Credentials entered
+- Malware execution
+- MFA not enabled
+- Active unauthorized access
+
+MEDIUM RISK:
+- User clicked link
+- Credential entry unknown
+- Multiple users affected
+
+LOW RISK:
+- No user interaction
+- Email caught by filters
+- All protections worked
+
+=== ESCALATION CRITERIA ===
+
+IMMEDIATE:
+- Confirmed account compromise with active access
+- Malware execution detected
+- Data exfiltration suspected
+
+STANDARD:
+- Credentials entered but MFA blocked access
+- >10 users affected
+- Executive/high-privilege account targeted
+
+LOW PRIORITY:
+- No user interaction
+- Caught before delivery

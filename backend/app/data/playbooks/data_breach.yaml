@@ -1,0 +1,274 @@
+# Data Breach Incident Response Playbook
+# Based on MITRE ATT&CK T1052.001 (Exfiltration over USB), T1048 (Exfiltration over Alternative Protocol)
+
+incident_type: data_breach
+
+mitre_attack:
+  tactics:
+    - "Exfiltration"
+    - "Collection"
+    - "Impact"
+  techniques:
+    - "T1052.001 - Exfiltration over Physical Medium: USB"
+    - "T1048 - Exfiltration Over Alternative Protocol"
+    - "T1537 - Transfer Data to Cloud Account"
+    - "T1567 - Exfiltration Over Web Service"
+
+phases:
+  intake:
+    description: "Initial data breach identification and scoping"
+    required_fields:
+      - data_type_affected
+      - estimated_records
+      - breach_method
+      - time_of_discovery
+
+    initial_questions:
+      - "What type of data was compromised (PII, PHI, PCI, trade secrets, etc.)?"
+      - "How many records/individuals are potentially affected?"
+      - "How was the breach discovered (monitoring alert, third-party, user report)?"
+      - "When did the breach occur vs. when was it discovered?"
+      - "Was data exfiltrated externally or just accessed internally?"
+
+  investigation:
+    description: "Determine breach scope, method, and extent of data exposure"
+
+    conditions:
+      data_exfiltration_confirmed:
+        triggers_when:
+          data_exfiltrated: "yes"
+        investigation_steps:
+          - "Review DLP (Data Loss Prevention) alerts and logs"
+          - "Analyze network egress traffic for data transfers"
+          - "Check file access logs for bulk downloads"
+          - "Review email logs for large attachments sent externally"
+          - "Inspect cloud storage sync logs (Dropbox, OneDrive, etc.)"
+          - "Check USB device connection logs"
+          - "Review web proxy logs for file upload activity"
+          - "Identify destination IPs/domains of exfiltration"
+
+      insider_threat_indicators:
+        investigation_steps:
+          - "Review employee access logs and badge swipes"
+          - "Check for privilege escalation attempts"
+          - "Review HR records for recent disciplinary actions"
+          - "Analyze user behavior patterns (off-hours access, unusual queries)"
+          - "Check for use of removable media or personal devices"
+          - "Review print logs for sensitive documents"
+          - "Investigate file server access patterns"
+
+      external_attack_indicators:
+        investigation_steps:
+          - "Review firewall and IDS/IPS logs for intrusion indicators"
+          - "Check for compromised accounts or credentials"
+          - "Analyze web application logs for SQL injection, path traversal"
+          - "Review authentication logs for unauthorized access"
+          - "Check for malware or backdoors on affected systems"
+          - "Identify attack vector (phishing, exploit, misconfiguration)"
+          - "Timeline reconstruction from initial access to exfiltration"
+
+      data_classification:
+        investigation_steps:
+          - "Identify specific data elements compromised:"
+          - "  - PII: Names, SSN, DOB, addresses, phone numbers"
+          - "  - PHI: Medical records, diagnoses, prescriptions"
+          - "  - PCI: Credit card numbers, CVV, expiration dates"
+          - "  - Financial: Bank accounts, routing numbers"
+          - "  - Credentials: Passwords, API keys, certificates"
+          - "  - Trade secrets: Proprietary algorithms, customer lists"
+          - "Determine total number of affected individuals"
+          - "Assess sensitivity and regulatory implications"
+
+  containment:
+    description: "Stop ongoing exfiltration and secure compromised systems"
+
+    conditions:
+      active_exfiltration:
+        triggers_when:
+          exfiltration_ongoing: "yes"
+        containment_actions:
+          - "Block destination IPs/domains at firewall immediately"
+          - "Disable compromised user accounts"
+          - "Revoke API keys and access tokens"
+          - "Quarantine affected systems from network"
+          - "Enable enhanced DLP rules to block data egress"
+          - "Disable external email forwarding organization-wide"
+          - "Restrict cloud storage sync temporarily"
+          - "Monitor for continued exfiltration attempts"
+
+      database_compromise:
+        containment_actions:
+          - "Isolate affected database servers"
+          - "Change all database credentials immediately"
+          - "Review and restrict database access permissions"
+          - "Enable database activity monitoring"
+          - "Patch SQL injection or other vulnerabilities"
+          - "Review and secure database backups"
+
+      insider_threat_containment:
+        triggers_when:
+          breach_source: "insider"
+        containment_actions:
+          - "Immediately disable insider's accounts and credentials"
+          - "Revoke physical access badges"
+          - "Collect devices (laptop, phone, USB drives)"
+          - "Preserve evidence per legal hold procedures"
+          - "Notify HR and legal teams immediately"
+          - "Document all actions taken for legal proceedings"
+
+  remediation:
+    description: "Recover from breach and prevent recurrence"
+
+    standard_steps:
+      - "Patch vulnerabilities that enabled the breach"
+      - "Implement enhanced access controls on sensitive data"
+      - "Deploy or enhance DLP solutions"
+      - "Enable database encryption at rest and in transit"
+      - "Implement file integrity monitoring"
+      - "Enhance logging and monitoring coverage"
+      - "Conduct security awareness training on data handling"
+      - "Review and update data classification policies"
+      - "Implement principle of least privilege access"
+
+    affected_party_notification:
+      - "Determine breach notification requirements:"
+      - "  - GDPR: 72 hours to supervisory authority"
+      - "  - CCPA: Notice without unreasonable delay"
+      - "  - HIPAA: 60 days to affected individuals"
+      - "  - State breach laws: Varies by state"
+      - "Draft notification letter with required elements"
+      - "Prepare FAQ and support resources"
+      - "Set up dedicated breach response hotline/email"
+      - "Offer credit monitoring services if appropriate"
+      - "Coordinate with PR team for public statement"
+
+    regulatory_compliance:
+      - "Notify regulatory authorities as required:"
+      - "  - HHS OCR for HIPAA breaches (500+ individuals)"
+      - "  - PCI DSS: Notify payment card brands and acquirer"
+      - "  - SEC: If material impact to publicly traded company"
+      - "  - State attorneys general as required"
+      - "Document all notification timelines and content"
+      - "Prepare for potential regulatory investigation"
+      - "Implement corrective action plan"
+
+  closure:
+    description: "Final documentation and lessons learned"
+
+    required_documentation:
+      - "Timeline of breach from initial access to discovery"
+      - "Data types and volume compromised"
+      - "Number of affected individuals"
+      - "Method of exfiltration and attack vector"
+      - "Containment and remediation actions taken"
+      - "Notifications sent to individuals and regulators"
+      - "Root cause analysis"
+      - "Preventive measures implemented"
+
+    lessons_learned:
+      - "Conduct post-incident review with stakeholders"
+      - "Identify gaps in detection and response"
+      - "Update incident response procedures"
+      - "Enhance monitoring and detection capabilities"
+      - "Review and update data governance policies"
+
+# Risk Assessment Criteria
+risk_factors:
+  critical_risk:
+    - data_type_affected: "PHI"
+    - data_type_affected: "PII"
+    - estimated_records: ">50000"
+    - regulatory_notification_required: "yes"
+    - exfiltration_confirmed: "yes"
+
+  high_risk:
+    - data_type_affected: "PCI"
+    - estimated_records: ">10000"
+    - data_exfiltrated: "yes"
+    - credentials_compromised: "yes"
+
+  medium_risk:
+    - data_type_affected: "internal_documents"
+    - estimated_records: ">1000"
+    - unauthorized_access_only: "yes"
+
+  low_risk:
+    - data_accessed_only: "yes"
+    - estimated_records: "<100"
+    - no_sensitive_data: "yes"
+
+# Escalation Criteria
+escalation:
+  immediate:
+    - "PHI or PII of 500+ individuals compromised"
+    - "Active data exfiltration ongoing"
+    - "Payment card data (PCI) compromised"
+    - "Trade secrets or proprietary data stolen"
+    - "Regulatory notification threshold met"
+    - "Media attention or public disclosure"
+
+  standard:
+    - "100-500 individuals affected"
+    - "Credentials or internal documents compromised"
+    - "Insider threat suspected"
+    - "Potential for identity theft or fraud"
+
+  low_priority:
+    - "Data accessed but not exfiltrated"
+    - "<100 individuals affected"
+    - "Non-sensitive data only"
+    - "Quickly contained with no ongoing threat"
+
+# Data Types and Regulatory Requirements
+data_types:
+  PII:
+    description: "Personally Identifiable Information"
+    examples:
+      - "Names, Social Security Numbers, Driver's License"
+      - "Addresses, phone numbers, email addresses"
+      - "Dates of birth, biometric data"
+    regulations:
+      - "GDPR (EU)"
+      - "CCPA (California)"
+      - "State breach notification laws"
+
+  PHI:
+    description: "Protected Health Information"
+    examples:
+      - "Medical records, diagnoses, prescriptions"
+      - "Health insurance information"
+      - "Treatment history"
+    regulations:
+      - "HIPAA (US healthcare)"
+      - "HITECH Act"
+
+  PCI:
+    description: "Payment Card Information"
+    examples:
+      - "Credit/debit card numbers"
+      - "CVV codes, expiration dates"
+      - "Cardholder names"
+    regulations:
+      - "PCI DSS"
+
+# Notification Timelines by Regulation
+notification_requirements:
+  GDPR:
+    authority_notification: "72 hours to supervisory authority"
+    individual_notification: "Without undue delay if high risk"
+    penalties: "Up to 4% of annual global turnover or €20 million"
+
+  HIPAA:
+    authority_notification: "60 days (500+ individuals), annual (fewer)"
+    individual_notification: "60 days from discovery"
+    media_notification: "If 500+ individuals in same state/jurisdiction"
+    penalties: "Up to $1.5 million per violation category per year"
+
+  CCPA:
+    authority_notification: "Not specifically required"
+    individual_notification: "Without unreasonable delay"
+    penalties: "$100-$750 per consumer per incident"
+
+  state_laws:
+    notification: "Varies by state (typically 30-90 days)"
+    attorney_general: "Many states require AG notification"

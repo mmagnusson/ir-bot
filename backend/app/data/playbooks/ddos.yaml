@@ -1,0 +1,382 @@
+# DDoS Attack Incident Response Playbook
+# Based on MITRE ATT&CK T1498 (Network DoS), T1499 (Endpoint DoS)
+
+incident_type: ddos
+
+mitre_attack:
+  tactics:
+    - "Impact"
+  techniques:
+    - "T1498 - Network Denial of Service"
+    - "T1498.001 - Direct Network Flood"
+    - "T1498.002 - Reflection Amplification"
+    - "T1499 - Endpoint Denial of Service"
+    - "T1499.004 - Application or System Exploitation"
+
+phases:
+  intake:
+    description: "Initial DDoS attack detection and classification"
+    required_fields:
+      - affected_services
+      - attack_type
+      - attack_volume
+      - time_of_attack
+
+    initial_questions:
+      - "What services or systems are affected (web, DNS, email, etc.)?"
+      - "What is the estimated attack volume (Gbps, packets per second)?"
+      - "What type of attack is observed (volumetric, protocol, application)?"
+      - "Are users reporting service unavailability or slowness?"
+      - "When did the attack begin?"
+      - "Is the attack ongoing or intermittent?"
+      - "Are DDoS mitigation services already in place?"
+
+  investigation:
+    description: "Classify attack type and identify attack vectors"
+
+    conditions:
+      volumetric_attack:
+        investigation_steps:
+          - "Analyze network traffic volume and bandwidth utilization"
+          - "Identify attack protocols (UDP flood, ICMP flood, SYN flood)"
+          - "Review NetFlow or packet capture data"
+          - "Identify source IP addresses and geolocation"
+          - "Determine if reflection amplification is used (DNS, NTP, SNMP)"
+          - "Check for botnet characteristics (distributed sources)"
+          - "Measure peak bandwidth and packets per second"
+          - "Review ISP bandwidth utilization graphs"
+
+      protocol_attack:
+        investigation_steps:
+          - "Identify protocol-level attacks (SYN flood, ACK flood, fragmentation)"
+          - "Review firewall and load balancer connection tables"
+          - "Check for TCP state exhaustion attacks"
+          - "Analyze protocol anomalies and malformed packets"
+          - "Review connection establishment patterns"
+          - "Check for SSL/TLS exhaustion attacks"
+          - "Identify attack targeting specific protocol vulnerabilities"
+
+      application_layer_attack:
+        investigation_steps:
+          - "Identify HTTP/HTTPS flood patterns"
+          - "Review web server access logs for request patterns"
+          - "Check for slowloris or slow POST attacks"
+          - "Identify HTTP request anomalies (unusual user agents, headers)"
+          - "Review application response times and resource consumption"
+          - "Check for API endpoint abuse or excessive queries"
+          - "Identify WordPress XML-RPC or other CMS-specific attacks"
+          - "Analyze cache-busting techniques (randomized query strings)"
+
+      attack_attribution:
+        investigation_steps:
+          - "Identify attack source IPs and ASNs"
+          - "Determine if attack is geographically distributed"
+          - "Check for known botnet signatures (Mirai, etc.)"
+          - "Review recent threat intelligence for similar attacks"
+          - "Identify if attack is targeted or opportunistic"
+          - "Check for ransom notes or attacker communication"
+          - "Review social media for attack claims or announcements"
+
+      business_impact:
+        investigation_steps:
+          - "Measure service availability and downtime"
+          - "Identify affected business operations and users"
+          - "Calculate financial impact (lost revenue, SLA penalties)"
+          - "Review customer complaints and support tickets"
+          - "Assess reputational damage and public perception"
+          - "Determine if attack coincides with business events (launch, etc.)"
+
+  containment:
+    description: "Mitigate attack and restore service availability"
+
+    conditions:
+      immediate_mitigation:
+        triggers_when:
+          attack_ongoing: "yes"
+        containment_actions:
+          - "Enable DDoS mitigation service (Cloudflare, Akamai, AWS Shield)"
+          - "Contact ISP for upstream filtering if available"
+          - "Implement rate limiting on edge devices"
+          - "Enable geo-blocking for non-business-critical regions"
+          - "Configure firewall rules to drop malicious traffic"
+          - "Enable SYN cookies to prevent SYN flood exhaustion"
+          - "Implement black hole routing for extreme volumetric attacks"
+          - "Scale infrastructure resources if possible (cloud auto-scaling)"
+
+      volumetric_mitigation:
+        triggers_when:
+          attack_type: "volumetric"
+        containment_actions:
+          - "Activate scrubbing center to filter malicious traffic"
+          - "Contact upstream provider for filtering at ISP level"
+          - "Implement BGP blackhole routing for attack traffic"
+          - "Enable anti-spoofing filters (BCP 38/RPF)"
+          - "Filter specific protocols if attack is protocol-specific (DNS, NTP)"
+          - "Increase bandwidth capacity temporarily if available"
+
+      protocol_mitigation:
+        triggers_when:
+          attack_type: "protocol"
+        containment_actions:
+          - "Enable SYN flood protection (SYN cookies, SYN proxy)"
+          - "Reduce TCP connection timeouts"
+          - "Increase connection table sizes on firewalls/load balancers"
+          - "Filter malformed packets at edge"
+          - "Enable TCP connection rate limiting"
+          - "Implement protocol-specific filtering rules"
+
+      application_layer_mitigation:
+        triggers_when:
+          attack_type: "application"
+        containment_actions:
+          - "Enable Web Application Firewall (WAF) with DDoS rules"
+          - "Implement CAPTCHA or JavaScript challenges"
+          - "Enable rate limiting per IP or session"
+          - "Block suspicious user agents or request patterns"
+          - "Whitelist known good IPs or authenticated users"
+          - "Serve static cached content to reduce origin load"
+          - "Temporarily disable non-critical features or endpoints"
+          - "Implement connection throttling and request queuing"
+
+      ransom_ddos:
+        triggers_when:
+          ransom_demand: "yes"
+        containment_actions:
+          - "DO NOT pay ransom - it encourages further attacks"
+          - "Document ransom communication for law enforcement"
+          - "Continue with technical mitigation strategies"
+          - "Notify law enforcement (FBI IC3, local authorities)"
+          - "Prepare public communication if attack becomes public"
+
+  remediation:
+    description: "Restore full service and implement long-term protections"
+
+    standard_steps:
+      - "Gradually restore services while monitoring traffic"
+      - "Verify application performance and functionality"
+      - "Review and optimize DDoS mitigation configurations"
+      - "Conduct post-attack traffic analysis"
+      - "Update firewall and IPS rules based on attack patterns"
+      - "Implement permanent rate limiting and throttling"
+      - "Review and enhance monitoring and alerting"
+      - "Document attack characteristics for future reference"
+
+    infrastructure_hardening:
+      - "Deploy or enhance DDoS mitigation service (CDN, scrubbing)"
+      - "Implement anycast network architecture for distribution"
+      - "Increase bandwidth capacity and redundancy"
+      - "Deploy load balancers with DDoS protection features"
+      - "Implement multi-layered defense (edge, network, application)"
+      - "Configure auto-scaling to handle traffic surges"
+      - "Separate critical services for isolation"
+      - "Implement Content Delivery Network (CDN) for static content"
+
+    monitoring_and_detection:
+      - "Deploy NetFlow or sFlow for traffic visibility"
+      - "Implement real-time bandwidth and traffic monitoring"
+      - "Configure alerts for traffic anomalies and volume spikes"
+      - "Deploy intrusion detection system (IDS) with DDoS signatures"
+      - "Implement baseline traffic profiling for anomaly detection"
+      - "Enable logging on all edge devices and security controls"
+      - "Subscribe to threat intelligence feeds for DDoS campaigns"
+
+    organizational_preparation:
+      - "Develop and test DDoS response playbook and runbook"
+      - "Establish communication plan for stakeholders"
+      - "Create escalation procedures for ISP and mitigation providers"
+      - "Conduct tabletop exercises for DDoS scenarios"
+      - "Maintain contact list for ISP, hosting provider, mitigation services"
+      - "Document network topology and critical services"
+      - "Review cyber insurance policy for DDoS coverage"
+
+  closure:
+    description: "Document attack and improve defenses"
+
+    required_documentation:
+      - "Attack timeline (start, peak, end)"
+      - "Attack type and classification"
+      - "Peak bandwidth and packets per second"
+      - "Source IPs, ASNs, and geographic distribution"
+      - "Affected services and downtime duration"
+      - "Mitigation actions taken and effectiveness"
+      - "Business impact and financial loss"
+      - "Lessons learned and improvement recommendations"
+
+    post_incident_actions:
+      - "Conduct lessons learned meeting with stakeholders"
+      - "Update DDoS response procedures based on findings"
+      - "Brief executive team on attack and preparedness"
+      - "Share indicators of compromise with community (if appropriate)"
+      - "Review and optimize DDoS mitigation configurations"
+      - "Consider law enforcement reporting if attack was criminal"
+
+# Risk Assessment Criteria
+risk_factors:
+  critical_risk:
+    - attack_volume: ">100Gbps"
+    - downtime_duration: ">4hours"
+    - critical_services_affected: "yes"
+    - ransom_demand: "yes"
+    - multi_vector_attack: "yes"
+
+  high_risk:
+    - attack_volume: "10-100Gbps"
+    - downtime_duration: "1-4hours"
+    - customer_facing_services: "yes"
+    - application_layer_attack: "yes"
+
+  medium_risk:
+    - attack_volume: "1-10Gbps"
+    - downtime_duration: "<1hour"
+    - mitigation_effective: "yes"
+    - limited_business_impact: "yes"
+
+  low_risk:
+    - attack_volume: "<1Gbps"
+    - attack_blocked: "yes"
+    - no_service_impact: "yes"
+    - proactive_detection: "yes"
+
+# Escalation Criteria
+escalation:
+  immediate:
+    - "Attack volume exceeds mitigation capacity (>50Gbps)"
+    - "Critical services down for >1 hour"
+    - "Ransom demand received"
+    - "Attack evolving or increasing in intensity"
+    - "ISP or hosting provider assistance needed"
+    - "Media attention or public impact"
+
+  standard:
+    - "Attack volume between 10-50Gbps"
+    - "Customer-facing services degraded"
+    - "Multi-vector attack requiring coordination"
+    - "Sustained attack lasting >2 hours"
+
+  low_priority:
+    - "Attack effectively mitigated"
+    - "No customer impact"
+    - "Attack volume manageable (<10Gbps)"
+    - "Automated defenses handling attack"
+
+# DDoS Attack Types
+attack_types:
+  volumetric:
+    description: "High-volume traffic to saturate bandwidth"
+    examples:
+      - "UDP flood"
+      - "ICMP flood (ping flood)"
+      - "DNS amplification"
+      - "NTP amplification"
+      - "SNMP amplification"
+      - "Memcached amplification"
+    mitigation: "Upstream filtering, scrubbing centers, bandwidth scaling"
+
+  protocol:
+    description: "Exploit protocol weaknesses to exhaust resources"
+    examples:
+      - "SYN flood"
+      - "ACK flood"
+      - "RST flood"
+      - "Fragmentation attacks"
+      - "TCP state exhaustion"
+      - "SSL/TLS handshake exhaustion"
+    mitigation: "SYN cookies, protocol filtering, connection rate limiting"
+
+  application:
+    description: "Target application layer to exhaust server resources"
+    examples:
+      - "HTTP flood"
+      - "HTTPS flood"
+      - "Slowloris"
+      - "Slow POST/Read attacks"
+      - "HTTP GET/POST floods with cache-busting"
+      - "API abuse or excessive queries"
+    mitigation: "WAF, CAPTCHA, rate limiting, caching, behavioral analysis"
+
+# Reflection Amplification Attacks
+reflection_amplification:
+  dns:
+    amplification_factor: "28x-54x"
+    mitigation: "Filter DNS responses, rate limit DNS queries, implement Response Rate Limiting (RRL)"
+
+  ntp:
+    amplification_factor: "556x"
+    mitigation: "Disable monlist command, filter NTP traffic, use NTP authentication"
+
+  snmp:
+    amplification_factor: "6x"
+    mitigation: "Disable SNMP or use SNMPv3, filter SNMP traffic"
+
+  ssdp:
+    amplification_factor: "30x"
+    mitigation: "Disable UPnP on edge devices, filter SSDP traffic"
+
+  chargen:
+    amplification_factor: "358x"
+    mitigation: "Disable chargen service, filter UDP port 19"
+
+  memcached:
+    amplification_factor: "51000x"
+    mitigation: "Disable UDP support, bind to localhost only, implement firewall rules"
+
+# DDoS Mitigation Services
+mitigation_providers:
+  cloudflare:
+    services: "DDoS mitigation, WAF, CDN, rate limiting"
+    capacity: "Unlimited unmetered DDoS protection"
+    activation: "DNS change to Cloudflare nameservers"
+
+  akamai:
+    services: "Prolexic Routed/Cloud, Kona Site Defender"
+    capacity: "Multi-Tbps scrubbing capacity"
+    activation: "BGP announcement or DNS"
+
+  aws_shield:
+    services: "Shield Standard (free), Shield Advanced (paid)"
+    capacity: "Automatic protection for AWS resources"
+    activation: "Enabled by default or subscription"
+
+  arbor_networks:
+    services: "On-premise DDoS appliances, cloud scrubbing"
+    capacity: "Varies by deployment"
+    activation: "Network integration or BGP"
+
+# Response Time Objectives
+response_objectives:
+  detection: "Within 5 minutes of attack start"
+  initial_response: "Within 15 minutes"
+  mitigation_active: "Within 30 minutes"
+  service_restoration: "Within 2 hours for critical services"
+  full_resolution: "Within 24 hours"
+
+# Communication Templates
+communication:
+  internal_notification:
+    subject: "URGENT: DDoS Attack in Progress"
+    content:
+      - "Attack Type: [volumetric/protocol/application]"
+      - "Affected Services: [list]"
+      - "Current Status: [ongoing/mitigated/resolved]"
+      - "Impact: [user-facing/internal/minimal]"
+      - "Actions Taken: [summary]"
+      - "Next Steps: [summary]"
+
+  customer_notification:
+    subject: "Service Status Update"
+    content:
+      - "We are currently experiencing technical difficulties"
+      - "Our team is actively working to restore full service"
+      - "We apologize for any inconvenience"
+      - "Updates will be provided every [X] minutes"
+      - "Contact support@company.com for urgent issues"
+
+  post_incident:
+    subject: "Incident Resolution: DDoS Attack"
+    content:
+      - "Services have been restored to normal operation"
+      - "Incident duration: [timeframe]"
+      - "Root cause: Distributed Denial of Service attack"
+      - "Mitigation: [summary of actions]"
+      - "Prevention: [enhanced protections implemented]"
+      - "We apologize for the disruption and appreciate your patience"
