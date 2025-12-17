@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { incidentAPI } from '../api/client';
 
 type IncidentType = 'phishing' | 'malware' | 'account_compromise' | 'data_breach' | 'ransomware' | 'insider_threat' | 'ddos' | 'unauthorized_access';
@@ -17,10 +17,19 @@ const INCIDENT_TYPES = [
 
 const IntakeForm: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [incidentType, setIncidentType] = useState<IncidentType>('phishing');
   const [formData, setFormData] = useState<any>({});
+
+  // Check for pre-selected incident type from URL
+  useEffect(() => {
+    const typeParam = searchParams.get('type');
+    if (typeParam && INCIDENT_TYPES.some(t => t.value === typeParam)) {
+      setIncidentType(typeParam as IncidentType);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -499,7 +508,17 @@ const IntakeForm: React.FC = () => {
       </div>
 
       <div className="card">
-        <h2>Initial Triage Intake</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ margin: 0 }}>Initial Triage Intake</h2>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => navigate('/classify')}
+            style={{ background: '#3b82f6', color: 'white', fontSize: '14px' }}
+          >
+            🤖 AI Classify from Logs
+          </button>
+        </div>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">

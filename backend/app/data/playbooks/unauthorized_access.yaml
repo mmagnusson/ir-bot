@@ -1,0 +1,214 @@
+# Unauthorized Access Incident Response Playbook
+# Based on MITRE ATT&CK T1078 (Valid Accounts), T1068 (Privilege Escalation)
+
+incident_type: unauthorized_access
+
+mitre_attack:
+  tactics:
+    - "Initial Access"
+    - "Privilege Escalation"
+    - "Persistence"
+  techniques:
+    - "T1078 - Valid Accounts"
+    - "T1068 - Exploitation for Privilege Escalation"
+    - "T1210 - Exploitation of Remote Services"
+    - "T1133 - External Remote Services"
+
+phases:
+  intake:
+    description: "Initial unauthorized access detection"
+    required_fields:
+      - affected_system
+      - time_of_detection
+      - access_method
+
+    initial_questions:
+      - "What system or resource was accessed without authorization?"
+      - "How was the unauthorized access detected?"
+      - "What method was used to gain access?"
+      - "Is the access currently ongoing?"
+      - "What actions were taken by the unauthorized party?"
+      - "Were credentials compromised or was a vulnerability exploited?"
+
+  investigation:
+    description: "Determine scope and impact of unauthorized access"
+
+    conditions:
+      access_method_analysis:
+        investigation_steps:
+          - "Review authentication logs for the affected system"
+          - "Identify the source IP address and geolocation"
+          - "Check for use of stolen credentials vs. vulnerability exploit"
+          - "Review VPN or remote access logs if applicable"
+          - "Identify time of first unauthorized access"
+          - "Determine if multi-factor authentication was bypassed"
+
+      privilege_escalation_check:
+        investigation_steps:
+          - "Check for privilege escalation attempts"
+          - "Review sudo/admin command history"
+          - "Identify if attacker gained elevated privileges"
+          - "Check for exploitation of known vulnerabilities (CVEs)"
+          - "Review system security patches and update status"
+
+      lateral_movement:
+        investigation_steps:
+          - "Check for access to other systems from compromised host"
+          - "Review network traffic logs for unusual connections"
+          - "Identify if attacker moved to other systems"
+          - "Check for new accounts created on other systems"
+          - "Review file shares and remote desktop connections"
+
+      data_impact:
+        investigation_steps:
+          - "Identify what data or resources were accessed"
+          - "Check for data exfiltration indicators"
+          - "Review file access logs and modifications"
+          - "Determine if sensitive data was compromised"
+          - "Check database query logs if applicable"
+
+      persistence_mechanisms:
+        investigation_steps:
+          - "Check for backdoor accounts created"
+          - "Review scheduled tasks and cron jobs"
+          - "Identify any malware or tools left behind"
+          - "Check for SSH keys or authorized_keys modifications"
+          - "Review startup scripts and services"
+
+  containment:
+    description: "Stop unauthorized access and prevent further damage"
+
+    conditions:
+      active_unauthorized_access:
+        triggers_when:
+          access_ongoing: "yes"
+        containment_actions:
+          - "Immediately terminate active unauthorized sessions"
+          - "Block source IP addresses at firewall level"
+          - "Disable compromised user accounts"
+          - "Isolate affected systems from network if necessary"
+          - "Enable additional monitoring on affected systems"
+          - "Change passwords for all accounts on affected systems"
+
+      credential_based_access:
+        triggers_when:
+          access_method: "stolen credentials"
+        containment_actions:
+          - "Force password reset for compromised accounts"
+          - "Revoke all active sessions for affected users"
+          - "Enable or strengthen multi-factor authentication"
+          - "Review and revoke any API keys or tokens"
+          - "Check for password reuse across other systems"
+
+      vulnerability_exploitation:
+        triggers_when:
+          access_method: "vulnerability exploit"
+        containment_actions:
+          - "Apply security patches immediately"
+          - "Implement temporary mitigations if patches unavailable"
+          - "Review other systems for same vulnerability"
+          - "Enable additional security controls (WAF, IPS)"
+          - "Consider taking system offline until patched"
+
+      persistence_detected:
+        triggers_when:
+          persistence_established: "yes"
+        containment_actions:
+          - "Remove backdoor accounts and unauthorized access"
+          - "Delete malicious scheduled tasks and services"
+          - "Remove unauthorized SSH keys"
+          - "Rebuild system from known good backup if heavily compromised"
+          - "Conduct full forensic imaging before cleanup"
+
+  remediation:
+    description: "Recover systems and prevent future unauthorized access"
+
+    standard_steps:
+      - "Patch all identified vulnerabilities on affected systems"
+      - "Review and update access control policies"
+      - "Implement least privilege access principles"
+      - "Enable and review audit logging for critical systems"
+      - "Strengthen authentication requirements (MFA, strong passwords)"
+      - "Review and update firewall rules"
+      - "Implement network segmentation if not present"
+      - "Update intrusion detection/prevention signatures"
+
+    system_recovery:
+      - "Restore systems from clean backups if necessary"
+      - "Verify integrity of critical system files"
+      - "Rebuild heavily compromised systems from scratch"
+      - "Restore data from backups after verification"
+      - "Re-apply all security configurations"
+      - "Update all system passwords and credentials"
+
+    security_enhancements:
+      - "Implement privileged access management (PAM)"
+      - "Deploy endpoint detection and response (EDR) if not present"
+      - "Enable file integrity monitoring on critical systems"
+      - "Implement just-in-time (JIT) access where possible"
+      - "Deploy jump servers/bastion hosts for remote access"
+      - "Enable detailed logging for authentication events"
+      - "Implement security information and event management (SIEM)"
+
+  closure:
+    description: "Document incident and improve security posture"
+
+    required_documentation:
+      - "Timeline of unauthorized access events"
+      - "Access method and attack vector used"
+      - "Systems and data affected"
+      - "Actions taken by unauthorized party"
+      - "Containment and remediation actions performed"
+      - "Vulnerabilities exploited or credentials compromised"
+      - "Lessons learned and security improvements"
+
+    program_improvements:
+      - "Conduct vulnerability assessment of similar systems"
+      - "Update access control policies and procedures"
+      - "Enhance monitoring and alerting for unauthorized access"
+      - "Implement additional security controls identified"
+      - "Update incident response playbook based on findings"
+
+# Risk Assessment Criteria
+risk_factors:
+  critical_risk:
+    - privilege_escalation: "yes"
+    - data_exfiltrated: "yes"
+    - persistence_established: "yes"
+    - multiple_systems_compromised: "yes"
+
+  high_risk:
+    - sensitive_data_accessed: "yes"
+    - admin_privileges_obtained: "yes"
+    - vulnerability_exploitation: "yes"
+    - lateral_movement: "yes"
+
+  medium_risk:
+    - unauthorized_access_detected: "yes"
+    - limited_data_accessed: "yes"
+    - single_system_affected: "yes"
+
+  low_risk:
+    - access_blocked_immediately: "yes"
+    - no_data_accessed: "yes"
+    - vulnerability_patched: "yes"
+
+# Escalation Criteria
+escalation:
+  immediate:
+    - "Admin or root access obtained by unauthorized party"
+    - "Multiple systems compromised"
+    - "Active data exfiltration detected"
+    - "Critical infrastructure or production systems affected"
+    - "Persistence mechanisms established"
+
+  standard:
+    - "Sensitive data accessed without authorization"
+    - "Vulnerability exploitation confirmed"
+    - "Credentials compromised"
+    - "Lateral movement detected"
+
+  low_priority:
+    - "Unauthorized access attempt blocked"
+    - "No system compromise confirmed"
+    - "Access limited to non-sensitive resources"

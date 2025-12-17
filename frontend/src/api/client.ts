@@ -144,6 +144,11 @@ export const incidentAPI = {
     const response = await apiClient.get('/api/incidents/');
     return response.data;
   },
+
+  classifyIncident: async (data: ClassificationRequest): Promise<ClassificationResponse> => {
+    const response = await apiClient.post('/api/incidents/classify', data);
+    return response.data;
+  },
 };
 
 export default apiClient;
