@@ -1,4 +1,5 @@
 # Ransomware Incident Response Playbook
+# Enhanced with role-based workflows, dependencies, and evidence tracking
 # Based on MITRE ATT&CK T1486 and industry best practices
 
 incident_type: ransomware
@@ -13,169 +14,847 @@ mitre_attack:
     - "T1490 - Inhibit System Recovery"
     - "T1489 - Service Stop"
 
+# Role definitions for this incident type
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads response, makes critical decisions, coordinates with executives"
+    required: true
+
+  ransomware_analyst:
+    name: "Ransomware Analyst"
+    description: "Ransomware variant identification and decryption research"
+    required: true
+
+  systems_admin:
+    name: "Systems Administrator"
+    description: "System isolation, backup verification, and restoration"
+    required: true
+
+  network_security:
+    name: "Network Security Specialist"
+    description: "Network isolation and C2 blocking"
+    required: true
+
+  legal_counsel:
+    name: "Legal Counsel"
+    description: "Legal/regulatory guidance and law enforcement coordination"
+    required: false
+    escalation_triggers: ["critical_risk", "law_enforcement_required"]
+
+  backup_admin:
+    name: "Backup Administrator"
+    description: "Backup verification and restoration operations"
+    required: true
+
 phases:
   intake:
     description: "Immediate triage during active ransomware incident"
+    primary_role: "incident_commander"
+    handoff_to: "ransomware_analyst"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      sign_off_required: false
+      checklist_completion_threshold: 100
+
+    sla:
+      target_completion_hours: 0.5
+      escalation_threshold_hours: 1
+      notify_roles: ["incident_commander", "systems_admin"]
+
     required_fields:
       - reporting_user_email
       - files_encrypted
       - ransom_note_present
       - time_of_detection
 
-    initial_questions:
-      - "Are files currently being encrypted?"
-      - "Is a ransom note present? What does it say?"
-      - "What is the file extension on encrypted files?"
-      - "Are backups accessible and unaffected?"
-      - "Is this affecting multiple systems?"
+    checklist:
+      - id: "intake_001"
+        step: "Confirm ransomware incident"
+        description: "Verify this is an active ransomware incident"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 3
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_reasoning"
+            prompt: "Describe why this is classified as ransomware"
+
+      - id: "intake_002"
+        step: "Assess if encryption is actively occurring"
+        description: "Determine if files are currently being encrypted"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 2
+        parallel_group: null
+        dependencies: ["intake_001"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "active_encryption"
+            prompt: "Is encryption actively occurring right now?"
+          - type: "text"
+            name: "affected_systems_initial"
+            prompt: "List affected systems/shares"
+
+      - id: "intake_003"
+        step: "Capture ransom note details"
+        description: "Document ransom note content immediately"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        parallel_group: "evidence_collection"
+        dependencies: ["intake_001"]
+        conditions:
+          triggers_when:
+            ransom_note_present: "yes"
+        critical: true
+        evidence_required:
+          - type: "file"
+            name: "ransom_note_screenshot"
+            prompt: "Upload screenshot of ransom note"
+          - type: "text"
+            name: "ransom_amount"
+            prompt: "Ransom amount demanded"
+          - type: "text"
+            name: "payment_instructions"
+            prompt: "Payment instructions and deadline"
+
+      - id: "intake_004"
+        step: "Note encrypted file extension"
+        description: "Document the file extension used by ransomware"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 2
+        parallel_group: "evidence_collection"
+        dependencies: ["intake_001"]
+        evidence_required:
+          - type: "text"
+            name: "encrypted_extension"
+            prompt: "File extension on encrypted files (e.g., .locked, .encrypt)"
+
+      - id: "intake_005"
+        step: "Alert executive leadership immediately"
+        description: "Notify C-suite of ransomware incident"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        parallel_group: null
+        dependencies: ["intake_002"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "executives_notified"
+            prompt: "Executives notified?"
+          - type: "timestamp"
+            name: "executive_notification_time"
+            prompt: "When were executives notified?"
 
   investigation:
     description: "Identify ransomware variant and infection scope"
+    primary_role: "ransomware_analyst"
+    supporting_roles: ["systems_admin", "backup_admin"]
+    handoff_to: "incident_commander"
 
-    conditions:
-      active_encryption:
-        triggers_when:
-          files_encrypted: "yes"
-        investigation_steps:
-          - "Identify ransomware variant from file extensions and ransom note"
-          - "Use ID Ransomware or No More Ransom to identify variant"
-          - "Determine encryption start time from file timestamps"
-          - "Map the scope: which systems, shares, and data are affected"
-          - "Check if shadow copies/VSS were deleted"
-          - "Review backup status and integrity"
-          - "Identify initial infection vector (phishing, RDP, vulnerability)"
-          - "Check for data exfiltration before encryption"
-          - "Review authentication logs for lateral movement"
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 80
+      escalation_check: true
 
-      ransom_note_analysis:
-        triggers_when:
-          ransom_note_present: "yes"
-        investigation_steps:
-          - "Document ransom amount and payment method"
-          - "Note contact information provided"
-          - "Screenshot ransom note for documentation"
-          - "Check for countdown timers or deadlines"
-          - "Research known decryptors for identified variant"
+    sla:
+      target_completion_hours: 2
+      escalation_threshold_hours: 3
+      notify_roles: ["incident_commander"]
 
-      network_spread:
-        investigation_steps:
-          - "Scan network for other infected systems"
-          - "Check for lateral movement indicators"
-          - "Review SMB/RDP access logs"
-          - "Identify compromised domain accounts"
-          - "Map affected network shares and file servers"
+    notifications:
+      - trigger: "step_completed"
+        step_id: "inv_001"
+        notify_roles: ["incident_commander", "systems_admin"]
+        message: "Ransomware variant identified - review for decryptors"
+
+      - trigger: "sla_warning"
+        threshold_hours: 3
+        notify_roles: ["incident_commander"]
+        message: "Investigation phase approaching SLA limit"
+
+    checklist:
+      - id: "inv_001"
+        step: "Identify ransomware variant"
+        description: "Use ID Ransomware, No More Ransom, or ransom note to identify variant"
+        assigned_to: "ransomware_analyst"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "ransomware_variant"
+            prompt: "Identified ransomware family/variant"
+          - type: "url"
+            name: "identification_source"
+            prompt: "Source URL (ID Ransomware, vendor report, etc.)"
+          - type: "boolean"
+            name: "decryptor_available"
+            prompt: "Is a free decryptor available?"
+
+      - id: "inv_002"
+        step: "Determine encryption start time"
+        description: "Check file timestamps to identify when encryption began"
+        assigned_to: "systems_admin"
+        estimated_time_minutes: 10
+        parallel_group: "scope_assessment"
+        dependencies: []
+        evidence_required:
+          - type: "timestamp"
+            name: "encryption_start_time"
+            prompt: "When did encryption start?"
+          - type: "text"
+            name: "earliest_encrypted_files"
+            prompt: "Path/name of earliest encrypted files found"
+
+      - id: "inv_003"
+        step: "Map affected systems and shares"
+        description: "Identify all systems, network shares, and data affected"
+        assigned_to: "systems_admin"
+        estimated_time_minutes: 30
+        parallel_group: "scope_assessment"
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "number"
+            name: "systems_affected_count"
+            prompt: "Number of systems affected"
+          - type: "text"
+            name: "critical_systems_affected"
+            prompt: "List of critical business systems affected"
+          - type: "text"
+            name: "shares_affected"
+            prompt: "Network shares/file servers affected"
+
+      - id: "inv_004"
+        step: "Check for shadow copy/VSS deletion"
+        description: "Verify if volume shadow copies were deleted"
+        assigned_to: "systems_admin"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "shadow_copies_deleted"
+            prompt: "Were volume shadow copies deleted?"
+          - type: "text"
+            name: "vss_status"
+            prompt: "Status of volume shadow service and remaining snapshots"
+
+      - id: "inv_005"
+        step: "Verify backup status and integrity"
+        description: "Check if backups are intact and unaffected"
+        assigned_to: "backup_admin"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "backups_available"
+            prompt: "Are clean backups available?"
+          - type: "boolean"
+            name: "backups_affected"
+            prompt: "Were backups encrypted or deleted?"
+          - type: "timestamp"
+            name: "last_clean_backup"
+            prompt: "Timestamp of last known clean backup"
+          - type: "text"
+            name: "backup_scope"
+            prompt: "What data is covered by available backups?"
+
+      - id: "inv_006"
+        step: "Identify initial infection vector"
+        description: "Determine how ransomware entered the environment"
+        assigned_to: "ransomware_analyst"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "infection_vector"
+            prompt: "Infection vector (phishing, RDP brute force, vulnerability, etc.)"
+          - type: "text"
+            name: "infection_details"
+            prompt: "Additional details about infection method"
+
+      - id: "inv_007"
+        step: "Check for data exfiltration"
+        description: "Determine if data was stolen before encryption"
+        assigned_to: "ransomware_analyst"
+        estimated_time_minutes: 25
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "data_exfiltration_suspected"
+            prompt: "Is data exfiltration suspected?"
+          - type: "text"
+            name: "exfiltration_evidence"
+            prompt: "Evidence of data exfiltration (network traffic, ransom note claims)"
+            optional: true
+
+      - id: "inv_008"
+        step: "Review authentication logs for lateral movement"
+        description: "Check if attackers moved laterally to other systems"
+        assigned_to: "ransomware_analyst"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "lateral_movement_detected"
+            prompt: "Was lateral movement detected?"
+          - type: "boolean"
+            name: "domain_admin_compromised"
+            prompt: "Were domain admin accounts compromised?"
+          - type: "text"
+            name: "compromised_accounts"
+            prompt: "List of compromised accounts"
+            optional: true
 
   containment:
     description: "Stop the spread and prevent further encryption"
+    primary_role: "incident_commander"
+    supporting_roles: ["systems_admin", "network_security", "backup_admin"]
+    handoff_to: "systems_admin"
 
-    conditions:
-      active_incident:
-        triggers_when:
-          files_encrypted: "yes"
-        containment_actions:
-          - "IMMEDIATELY isolate all affected systems from network"
-          - "Disable network adapters on infected endpoints"
-          - "Disconnect backup systems and network storage"
-          - "Power off systems if encryption is actively occurring"
-          - "Block C2 communication at firewall/proxy"
-          - "Disable compromised user accounts"
-          - "Disable domain admin accounts if compromised"
-          - "Segment network to prevent lateral spread"
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
 
-      backup_protection:
-        containment_actions:
-          - "Verify backup systems are isolated and secure"
-          - "Take offline backups offline if not already"
-          - "Prevent backup deletion/encryption"
-          - "Create forensic images of affected systems"
+    sla:
+      target_completion_hours: 1
+      escalation_threshold_hours: 2
+      notify_roles: ["incident_commander"]
+
+    notifications:
+      - trigger: "step_completed"
+        step_id: "cont_001"
+        notify_roles: ["incident_commander"]
+        message: "Infected systems isolated - encryption spread stopped"
+
+    checklist:
+      - id: "cont_001"
+        step: "Isolate all affected systems immediately"
+        description: "Network isolate or power off infected systems"
+        assigned_to: "systems_admin"
+        estimated_time_minutes: 10
+        parallel_group: "system_isolation"
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "systems_isolated"
+            prompt: "All affected systems isolated?"
+          - type: "timestamp"
+            name: "isolation_completed_time"
+            prompt: "When was isolation completed?"
+          - type: "number"
+            name: "systems_isolated_count"
+            prompt: "Number of systems isolated"
+
+      - id: "cont_002"
+        step: "Disable network adapters on infected endpoints"
+        description: "If isolation not available, disable NICs directly"
+        assigned_to: "systems_admin"
+        estimated_time_minutes: 10
+        parallel_group: "system_isolation"
+        dependencies: []
+        conditions:
+          triggers_when:
+            active_encryption: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "network_adapters_disabled"
+            prompt: "Network adapters disabled on infected systems?"
+
+      - id: "cont_003"
+        step: "Power off systems if encryption actively occurring"
+        description: "If encryption is active, immediately power off to minimize data loss"
+        assigned_to: "systems_admin"
+        estimated_time_minutes: 5
+        parallel_group: "system_isolation"
+        dependencies: []
+        conditions:
+          triggers_when:
+            active_encryption: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "systems_powered_off"
+            prompt: "Encrypting systems powered off?"
+          - type: "number"
+            name: "systems_powered_off_count"
+            prompt: "Number of systems powered off"
+
+      - id: "cont_004"
+        step: "Disconnect backup systems and network storage"
+        description: "Protect backups from being encrypted or deleted"
+        assigned_to: "backup_admin"
+        estimated_time_minutes: 10
+        parallel_group: "backup_protection"
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "backups_disconnected"
+            prompt: "Backup systems disconnected from network?"
+          - type: "boolean"
+            name: "backups_verified_intact"
+            prompt: "Backups verified intact?"
+
+      - id: "cont_005"
+        step: "Take offline backups offline"
+        description: "Ensure offline/immutable backups are truly isolated"
+        assigned_to: "backup_admin"
+        estimated_time_minutes: 5
+        parallel_group: "backup_protection"
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "offline_backups_secured"
+            prompt: "Offline backups secured?"
+
+      - id: "cont_006"
+        step: "Block C2 communication at firewall"
+        description: "Prevent ransomware from receiving commands or exfiltrating data"
+        assigned_to: "network_security"
+        estimated_time_minutes: 15
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "c2_indicators_blocked"
+            prompt: "List of C2 IPs/domains blocked"
+            optional: true
+          - type: "boolean"
+            name: "c2_blocking_confirmed"
+            prompt: "C2 blocking confirmed active?"
+
+      - id: "cont_007"
+        step: "Disable compromised user accounts"
+        description: "Lock accounts used during lateral movement"
+        assigned_to: "systems_admin"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            lateral_movement_detected: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "accounts_disabled"
+            prompt: "Compromised accounts disabled?"
+          - type: "text"
+            name: "disabled_accounts_list"
+            prompt: "List of disabled accounts"
+
+      - id: "cont_008"
+        step: "Disable domain admin accounts if compromised"
+        description: "Immediately disable compromised privileged accounts"
+        assigned_to: "systems_admin"
+        estimated_time_minutes: 5
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            domain_admin_compromised: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "domain_admins_disabled"
+            prompt: "Compromised domain admin accounts disabled?"
+
+      - id: "cont_009"
+        step: "Segment network to prevent further spread"
+        description: "Isolate network segments to limit ransomware propagation"
+        assigned_to: "network_security"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "network_segmented"
+            prompt: "Network segmentation implemented?"
+          - type: "text"
+            name: "segmentation_details"
+            prompt: "Describe segmentation implemented"
+
+      - id: "cont_010"
+        step: "Create forensic images of key affected systems"
+        description: "Preserve evidence for investigation and potential law enforcement"
+        assigned_to: "ransomware_analyst"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: ["cont_001"]
+        evidence_required:
+          - type: "boolean"
+            name: "forensic_images_created"
+            prompt: "Forensic images created?"
+          - type: "number"
+            name: "forensic_images_count"
+            prompt: "Number of forensic images created"
+            optional: true
 
   remediation:
     description: "Recovery and system restoration"
+    primary_role: "systems_admin"
+    supporting_roles: ["backup_admin", "ransomware_analyst", "legal_counsel"]
+    handoff_to: "incident_commander"
 
-    standard_steps:
-      - "DO NOT pay ransom without executive/legal approval"
-      - "Check No More Ransom Project for free decryptors"
-      - "Attempt decryption ONLY if reliable decryptor available"
-      - "Restore from clean, verified backups (preferred method)"
-      - "Rebuild infected systems from scratch if no backups"
-      - "Reset ALL user and service account passwords"
-      - "Reset domain admin and privileged account credentials"
-      - "Patch all systems before returning to production"
-      - "Implement application whitelisting where possible"
-      - "Enable and test backups before reconnecting"
-      - "Monitor restored systems for 7-14 days for re-infection"
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
 
-    recovery_priority:
-      - "Restore critical business systems first"
-      - "Validate data integrity before declaring restored"
-      - "Test system functionality before production use"
-      - "Gradually reconnect to network with monitoring"
+    sla:
+      target_completion_hours: 48
+      escalation_threshold_hours: 72
+      notify_roles: ["incident_commander"]
+
+    checklist:
+      - id: "rem_001"
+        step: "Evaluate ransom payment decision"
+        description: "Consult legal counsel and executives on payment decision"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            backups_available: false
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "ransom_payment_decision"
+            prompt: "Decision on ransom payment (true = pay, false = do not pay)"
+          - type: "text"
+            name: "payment_rationale"
+            prompt: "Rationale for payment decision"
+          - type: "boolean"
+            name: "law_enforcement_consulted"
+            prompt: "Was law enforcement consulted?"
+
+      - id: "rem_002"
+        step: "Search for free decryptor"
+        description: "Check No More Ransom Project and security vendors"
+        assigned_to: "ransomware_analyst"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "free_decryptor_found"
+            prompt: "Was a free decryptor found?"
+          - type: "url"
+            name: "decryptor_source"
+            prompt: "Source of decryptor if found"
+            optional: true
+
+      - id: "rem_003"
+        step: "Test decryptor on sample files"
+        description: "Test decryptor on non-critical files before full deployment"
+        assigned_to: "ransomware_analyst"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: ["rem_002"]
+        conditions:
+          triggers_when:
+            free_decryptor_found: true
+        evidence_required:
+          - type: "boolean"
+            name: "decryptor_successful"
+            prompt: "Did decryptor work successfully?"
+          - type: "text"
+            name: "decryption_test_results"
+            prompt: "Results of decryption testing"
+
+      - id: "rem_004"
+        step: "Restore from clean backups"
+        description: "Restore systems from last known clean backup (preferred method)"
+        assigned_to: "backup_admin"
+        estimated_time_minutes: 240
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            backups_available: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "backup_restore_initiated"
+            prompt: "Backup restoration initiated?"
+          - type: "timestamp"
+            name: "restore_start_time"
+            prompt: "When did restoration start?"
+
+      - id: "rem_005"
+        step: "Verify restored data integrity"
+        description: "Confirm restored data is complete and not corrupted"
+        assigned_to: "backup_admin"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: ["rem_004"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "data_integrity_verified"
+            prompt: "Data integrity verified?"
+          - type: "text"
+            name: "data_loss_assessment"
+            prompt: "Assessment of any data loss (time window, specific files, etc.)"
+
+      - id: "rem_006"
+        step: "Rebuild infected systems from scratch"
+        description: "Reimage systems if no backups or as precaution"
+        assigned_to: "systems_admin"
+        estimated_time_minutes: 180
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "systems_rebuilt"
+            prompt: "Systems rebuilt from clean images?"
+          - type: "number"
+            name: "systems_rebuilt_count"
+            prompt: "Number of systems rebuilt"
+
+      - id: "rem_007"
+        step: "Reset ALL user and service account passwords"
+        description: "Force password reset for all accounts to prevent re-entry"
+        assigned_to: "systems_admin"
+        estimated_time_minutes: 60
+        parallel_group: "credential_reset"
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "all_passwords_reset"
+            prompt: "All user/service passwords reset?"
+          - type: "number"
+            name: "passwords_reset_count"
+            prompt: "Number of passwords reset"
+
+      - id: "rem_008"
+        step: "Reset domain admin and privileged credentials"
+        description: "Reset all privileged account passwords"
+        assigned_to: "systems_admin"
+        estimated_time_minutes: 30
+        parallel_group: "credential_reset"
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "privileged_passwords_reset"
+            prompt: "All privileged account passwords reset?"
+
+      - id: "rem_009"
+        step: "Patch all systems before production"
+        description: "Apply security updates to prevent re-infection"
+        assigned_to: "systems_admin"
+        estimated_time_minutes: 120
+        parallel_group: null
+        dependencies: ["rem_006"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "patches_applied"
+            prompt: "Security patches applied to all systems?"
+          - type: "text"
+            name: "critical_patches"
+            prompt: "List of critical patches applied"
+
+      - id: "rem_010"
+        step: "Enable and test backups before reconnecting"
+        description: "Ensure backup systems are working before returning to production"
+        assigned_to: "backup_admin"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: ["rem_005"]
+        evidence_required:
+          - type: "boolean"
+            name: "backups_tested"
+            prompt: "Backup systems tested and working?"
+
+      - id: "rem_011"
+        step: "Gradually reconnect to network with monitoring"
+        description: "Bring systems back online carefully with enhanced monitoring"
+        assigned_to: "systems_admin"
+        estimated_time_minutes: 120
+        parallel_group: null
+        dependencies: ["rem_009", "rem_010"]
+        evidence_required:
+          - type: "boolean"
+            name: "systems_reconnected"
+            prompt: "Systems reconnected to production network?"
+          - type: "text"
+            name: "monitoring_status"
+            prompt: "Describe monitoring implemented for restored systems"
+
+      - id: "rem_012"
+        step: "Monitor restored systems for 7-14 days"
+        description: "Watch for signs of re-infection or missed artifacts"
+        assigned_to: "systems_admin"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: ["rem_011"]
+        evidence_required:
+          - type: "boolean"
+            name: "extended_monitoring_completed"
+            prompt: "Extended monitoring period completed?"
+          - type: "text"
+            name: "monitoring_findings"
+            prompt: "Any suspicious activity during monitoring?"
 
   closure:
     description: "Post-incident activities and prevention"
+    primary_role: "incident_commander"
+    supporting_roles: ["legal_counsel"]
 
-    required_documentation:
-      - "Ransomware variant and IOCs"
-      - "Infection timeline and scope"
-      - "Systems affected and data encrypted"
-      - "Ransom demand details"
-      - "Recovery method used"
-      - "Data loss assessment"
-      - "Total downtime and business impact"
-      - "Law enforcement notification (required in many jurisdictions)"
+    checklist:
+      - id: "close_001"
+        step: "Notify law enforcement"
+        description: "Report incident to FBI IC3, US-CERT, and local FBI field office"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "law_enforcement_notified"
+            prompt: "Law enforcement notified?"
+          - type: "text"
+            name: "agencies_contacted"
+            prompt: "List of agencies contacted (FBI IC3, US-CERT, etc.)"
+          - type: "timestamp"
+            name: "law_enforcement_notification_time"
+            prompt: "When was law enforcement notified?"
 
-    prevention_recommendations:
-      - "Implement 3-2-1 backup strategy (3 copies, 2 media, 1 offsite)"
-      - "Enable offline/immutable backups"
-      - "Deploy EDR on all endpoints"
-      - "Implement network segmentation"
-      - "Disable RDP or require VPN/MFA"
-      - "Apply principle of least privilege"
-      - "Regular backup testing and validation"
-      - "User security awareness training"
+      - id: "close_002"
+        step: "Create comprehensive incident timeline"
+        description: "Document complete timeline from initial infection to resolution"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 60
+        parallel_group: "documentation"
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete incident timeline"
+
+      - id: "close_003"
+        step: "Document ransomware IOCs"
+        description: "Record all indicators of compromise"
+        assigned_to: "ransomware_analyst"
+        estimated_time_minutes: 30
+        parallel_group: "documentation"
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "iocs_list"
+            prompt: "Complete list of IOCs (file hashes, IPs, domains, file extensions)"
+
+      - id: "close_004"
+        step: "Calculate total downtime and business impact"
+        description: "Assess business impact including downtime, data loss, costs"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 45
+        parallel_group: null
+        dependencies: ["close_002"]
+        evidence_required:
+          - type: "number"
+            name: "downtime_hours"
+            prompt: "Total downtime in hours"
+          - type: "text"
+            name: "business_impact_summary"
+            prompt: "Summary of business impact"
+
+      - id: "close_005"
+        step: "Document prevention recommendations"
+        description: "Create comprehensive prevention plan"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: ["close_004"]
+        evidence_required:
+          - type: "text"
+            name: "prevention_recommendations"
+            prompt: "Prevention recommendations (3-2-1 backups, EDR, network segmentation, MFA, training, etc.)"
+
+      - id: "close_006"
+        step: "Conduct lessons learned session"
+        description: "Team debrief to identify improvements"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 90
+        parallel_group: null
+        dependencies: ["close_005"]
+        evidence_required:
+          - type: "text"
+            name: "lessons_learned"
+            prompt: "Key lessons learned and action items"
 
 # Risk Assessment Criteria
 risk_factors:
   critical_risk:
     - files_encrypted: "yes"
-    - backups_affected: "yes"
+    - backups_affected: true
     - spread_to_other_systems: "yes"
-    - data_exfiltration_before_encryption: "yes"
+    - data_exfiltration_suspected: true
+    - domain_admin_compromised: true
 
   high_risk:
     - files_encrypted: "yes"
-    - backups_affected: "no"
-    - domain_admin_compromised: "yes"
+    - backups_affected: false
+    - critical_systems_affected: "yes"
 
   medium_risk:
     - files_encrypted: "yes"
-    - backups_available: "yes"
+    - backups_available: true
     - single_system_affected: "yes"
 
 # Escalation Criteria
 escalation:
   immediate:
-    - "Active encryption in progress"
-    - "Backups compromised or deleted"
-    - "Critical business systems affected"
-    - "Data exfiltration detected"
-    - "Demands exceed organizational threshold"
+    criteria:
+      - "Active encryption in progress"
+      - "Backups compromised or deleted"
+      - "Critical business systems affected"
+      - "Data exfiltration detected"
+      - "Domain admin accounts compromised"
+    notify_roles:
+      - "incident_commander"
+      - "systems_admin"
+    additional_roles_required:
+      - "ciso"
+      - "legal_counsel"
+      - "ceo"
 
   standard:
-    - "Multiple systems affected"
-    - "Backup restore time exceeds RTO"
-    - "Unknown ransomware variant"
+    criteria:
+      - "Multiple systems affected"
+      - "Backup restore time exceeds RTO"
+      - "Unknown ransomware variant"
+    notify_roles:
+      - "incident_commander"
+      - "ransomware_analyst"
 
 # Law Enforcement Notification
 law_enforcement:
-  required:
+  required_agencies:
     - "FBI IC3 (www.ic3.gov)"
     - "US-CERT (us-cert.cisa.gov)"
     - "Local FBI field office"
-  optional:
+  optional_agencies:
     - "Secret Service (for financial sector)"
     - "State/local law enforcement"
-
   do_not_negotiate_without:
     - "Legal counsel consultation"
     - "Executive leadership approval"

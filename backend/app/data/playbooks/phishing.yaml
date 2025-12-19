@@ -1,11 +1,42 @@
 # Phishing Incident Response Playbook
-# This defines the procedural steps for handling phishing incidents
+# Enhanced with role-based workflows, dependencies, and evidence tracking
 
 incident_type: phishing
+
+# Role definitions for this incident type
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads response, makes decisions, coordinates team"
+    required: true
+
+  forensics_analyst:
+    name: "Forensics Analyst"
+    description: "Technical investigation and evidence collection"
+    required: true
+
+  communications_lead:
+    name: "Communications Lead"
+    description: "User notifications and internal communications"
+    required: false
+    escalation_triggers: ["high_risk", "multiple_users_affected"]
+
+  security_admin:
+    name: "Security Administrator"
+    description: "System changes and security controls"
+    required: true
 
 phases:
   intake:
     description: "Initial triage and information gathering"
+    primary_role: "incident_commander"
+    handoff_to: "forensics_analyst"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      sign_off_required: false
+      checklist_completion_threshold: 100
+
     required_fields:
       - reporting_user_email
       - user_clicked
@@ -13,112 +44,408 @@ phases:
       - credentials_entered
       - time_of_report
 
-    initial_questions:
-      - "Did the user click any links in the email?"
-      - "Did the user open any attachments?"
-      - "Did the user enter credentials on any website?"
-      - "Are email headers available for analysis?"
+    checklist:
+      - id: "intake_001"
+        step: "Confirm incident classification"
+        description: "Verify this is a phishing incident, not another type"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_reasoning"
+            prompt: "Why is this classified as phishing?"
+
+      - id: "intake_002"
+        step: "Collect basic incident details"
+        description: "Gather initial information from reporting user"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: ["intake_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "reporter_statement"
+            prompt: "Summary of what the user reported"
+
+      - id: "intake_003"
+        step: "Request email headers if available"
+        description: "Ask user or IT to provide full email headers"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        parallel_group: "evidence_collection"
+        dependencies: ["intake_002"]
+        evidence_required:
+          - type: "boolean"
+            name: "headers_obtained"
+            prompt: "Were email headers obtained?"
+          - type: "file"
+            name: "email_headers"
+            prompt: "Upload email headers (.eml or .txt)"
+            optional: true
 
   investigation:
     description: "Determine scope and impact"
+    primary_role: "forensics_analyst"
+    handoff_to: "incident_commander"
 
-    conditions:
-      user_clicked_yes:
-        triggers_when:
-          user_clicked: "yes"
-        investigation_steps:
-          - "Review authentication logs for the reporting user"
-          - "Check for sign-ins from new IPs or unusual locations"
-          - "Verify MFA status on the user's account"
-          - "Search user's inbox for similar phishing messages"
-          - "Check if the URL is on any threat intelligence feeds"
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 80
+      escalation_check: true
 
-      credentials_entered_yes:
-        triggers_when:
-          credentials_entered: "yes"
-        investigation_steps:
-          - "Identify all accounts using the same credentials"
-          - "Review recent account activity across all services"
-          - "Check for password reuse across corporate accounts"
-          - "Look for unauthorized access or data exfiltration"
-          - "Verify if MFA prevented unauthorized access"
+    sla:
+      target_completion_hours: 4
+      escalation_threshold_hours: 6
+      notify_roles: ["incident_commander"]
 
-      attachment_opened_yes:
-        triggers_when:
-          attachment_opened: "yes"
-        investigation_steps:
-          - "Obtain file hash and check against threat databases"
-          - "Scan the endpoint with EDR/antivirus"
-          - "Review process execution logs on affected endpoint"
-          - "Check for suspicious network connections from the endpoint"
-          - "Isolate endpoint if malware execution is suspected"
+    notifications:
+      - trigger: "step_completed"
+        step_id: "inv_001"
+        notify_roles: ["incident_commander"]
+        message: "Initial authentication log review complete"
 
-      headers_available_yes:
-        triggers_when:
-          headers_available: true
-        investigation_steps:
-          - "Analyze sender reputation and SPF/DKIM/DMARC results"
-          - "Extract sender IP and check geolocation"
-          - "Search for similar emails across organization"
-          - "Identify other recipients of the same campaign"
+      - trigger: "sla_warning"
+        threshold_hours: 6
+        notify_roles: ["incident_commander"]
+        message: "Investigation phase approaching SLA limit"
+
+    checklist:
+      - id: "inv_001"
+        step: "Review authentication logs for the reporting user"
+        description: "Check for successful/failed login attempts in the last 24 hours"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            user_clicked: "yes"
+        evidence_required:
+          - type: "file"
+            name: "auth_logs"
+            prompt: "Upload authentication logs (CSV or JSON)"
+          - type: "text"
+            name: "suspicious_ips"
+            prompt: "List any suspicious IP addresses found"
+            optional: true
+
+      - id: "inv_002"
+        step: "Check for sign-ins from new IPs or unusual locations"
+        description: "Cross-reference with normal user behavior patterns"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 15
+        parallel_group: null
+        dependencies: ["inv_001"]
+        conditions:
+          triggers_when:
+            user_clicked: "yes"
+        evidence_required:
+          - type: "boolean"
+            name: "suspicious_signins_observed"
+            prompt: "Were suspicious sign-ins observed?"
+          - type: "text"
+            name: "signin_details"
+            prompt: "If yes, provide details (IPs, locations, times)"
+            optional: true
+
+      - id: "inv_003"
+        step: "Verify MFA status on the user's account"
+        description: "Confirm if MFA is enabled and functioning"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 5
+        parallel_group: "account_review"
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "mfa_enabled"
+            prompt: "Is MFA enabled on this account?"
+
+      - id: "inv_004"
+        step: "Search user's inbox for similar phishing messages"
+        description: "Look for other emails from the same sender or campaign"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 10
+        parallel_group: "account_review"
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "similar_emails_found"
+            prompt: "Were similar phishing emails found?"
+          - type: "number"
+            name: "similar_email_count"
+            prompt: "How many similar emails were found?"
+            optional: true
+
+      - id: "inv_005"
+        step: "Analyze email headers for sender reputation"
+        description: "Check SPF/DKIM/DMARC results and sender IP"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 15
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            headers_available: true
+        evidence_required:
+          - type: "text"
+            name: "sender_ip"
+            prompt: "Sender IP address"
+          - type: "text"
+            name: "spf_dkim_results"
+            prompt: "SPF/DKIM/DMARC validation results"
+
+      - id: "inv_006"
+        step: "Scan attachment if opened"
+        description: "Get file hash and scan with antivirus/sandboxing"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            attachment_opened: "yes"
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "file_hash"
+            prompt: "File hash (SHA256)"
+          - type: "boolean"
+            name: "malware_detected"
+            prompt: "Was malware detected?"
+          - type: "text"
+            name: "malware_details"
+            prompt: "Malware family/details if detected"
+            optional: true
 
   containment:
     description: "Actions to prevent further damage"
+    primary_role: "incident_commander"
+    supporting_roles: ["security_admin", "forensics_analyst"]
+    handoff_to: "security_admin"
 
-    conditions:
-      credentials_compromised:
-        triggers_when:
-          credential_submission_confirmed: "yes"
-        containment_actions:
-          - "Force immediate password reset"
-          - "Revoke all active sessions"
-          - "Reset MFA tokens if applicable"
-          - "Enable account monitoring"
-          - "Notify user of compromise"
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
 
-      attachment_malicious:
-        triggers_when:
-          attachment_opened: "yes"
-        containment_actions:
-          - "Isolate affected endpoint from network"
-          - "Disable user account temporarily"
-          - "Block malicious hash at email gateway"
-          - "Quarantine similar attachments"
+    sla:
+      target_completion_hours: 2
+      escalation_threshold_hours: 3
+      notify_roles: ["incident_commander"]
 
-      widespread_campaign:
-        triggers_when:
-          other_affected_users: "yes"
-        containment_actions:
-          - "Block sender domain/email at email gateway"
-          - "Create transport rule to quarantine similar emails"
-          - "Search and purge emails from all mailboxes"
-          - "Send organization-wide alert"
+    checklist:
+      - id: "cont_001"
+        step: "Force immediate password reset"
+        description: "Reset password for the affected account"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 5
+        parallel_group: "account_security"
+        dependencies: []
+        conditions:
+          triggers_when:
+            credentials_entered: "yes"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "password_reset_complete"
+            prompt: "Password reset confirmed?"
+          - type: "timestamp"
+            name: "password_reset_time"
+            prompt: "When was the password reset?"
+
+      - id: "cont_002"
+        step: "Revoke all active sessions"
+        description: "Terminate all active sessions for the compromised account"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 5
+        parallel_group: "account_security"
+        dependencies: []
+        conditions:
+          triggers_when:
+            credentials_entered: "yes"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "sessions_revoked"
+            prompt: "All sessions revoked?"
+          - type: "number"
+            name: "sessions_revoked_count"
+            prompt: "Number of sessions terminated"
+
+      - id: "cont_003"
+        step: "Isolate endpoint if malware detected"
+        description: "Network isolate the affected system"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            malware_detected: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "endpoint_isolated"
+            prompt: "Endpoint successfully isolated?"
+          - type: "timestamp"
+            name: "isolation_time"
+            prompt: "When was isolation completed?"
+
+      - id: "cont_004"
+        step: "Block sender at email gateway"
+        description: "Add sender domain/email to block list"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 5
+        parallel_group: "email_controls"
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "blocked_sender"
+            prompt: "Sender address/domain blocked"
+          - type: "boolean"
+            name: "block_confirmed"
+            prompt: "Block rule confirmed active?"
+
+      - id: "cont_005"
+        step: "Search and quarantine similar emails"
+        description: "Find and quarantine matching emails across organization"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 15
+        parallel_group: "email_controls"
+        dependencies: []
+        evidence_required:
+          - type: "number"
+            name: "emails_quarantined"
+            prompt: "Number of emails quarantined"
+
+      - id: "cont_006"
+        step: "Notify affected user"
+        description: "Inform user of incident and actions taken"
+        assigned_to: "communications_lead"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: ["cont_001", "cont_002"]
+        evidence_required:
+          - type: "boolean"
+            name: "user_notified"
+            prompt: "User notification sent?"
+          - type: "timestamp"
+            name: "notification_time"
+            prompt: "When was user notified?"
 
   remediation:
     description: "Cleanup and recovery actions"
+    primary_role: "security_admin"
+    handoff_to: "incident_commander"
 
-    standard_steps:
-      - "Remove phishing email from affected mailboxes"
-      - "Block sender domain/IP at email gateway"
-      - "Update email filtering rules"
-      - "Document indicators of compromise (IOCs)"
-      - "Share IOCs with threat intelligence platform"
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 90
 
-    user_education:
-      - "Send targeted phishing awareness reminder to affected users"
-      - "Schedule follow-up security awareness training"
-      - "Update phishing reporting procedures if needed"
+    checklist:
+      - id: "rem_001"
+        step: "Remove phishing email from all mailboxes"
+        description: "Purge the phishing email from affected mailboxes"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "number"
+            name: "mailboxes_cleaned"
+            prompt: "Number of mailboxes cleaned"
+
+      - id: "rem_002"
+        step: "Update email filtering rules"
+        description: "Enhance filters to catch similar phishing attempts"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 15
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "new_filter_rules"
+            prompt: "Description of new filter rules added"
+
+      - id: "rem_003"
+        step: "Document indicators of compromise"
+        description: "Record all IOCs for threat intelligence"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 20
+        parallel_group: "documentation"
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "iocs_list"
+            prompt: "List of IOCs (IPs, domains, file hashes, etc.)"
+
+      - id: "rem_004"
+        step: "Send phishing awareness reminder"
+        description: "Educate affected users about phishing indicators"
+        assigned_to: "communications_lead"
+        estimated_time_minutes: 15
+        parallel_group: "documentation"
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "awareness_sent"
+            prompt: "Awareness reminder sent to affected users?"
 
   closure:
     description: "Final documentation and lessons learned"
+    primary_role: "incident_commander"
 
-    required_documentation:
-      - "Timeline of events"
-      - "All actions taken"
-      - "Affected users and systems"
-      - "IOCs identified"
-      - "Residual risks"
-      - "Recommended follow-up actions"
+    checklist:
+      - id: "close_001"
+        step: "Create incident timeline"
+        description: "Document chronological sequence of events"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete incident timeline"
+
+      - id: "close_002"
+        step: "Document all actions taken"
+        description: "List every containment and remediation action"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "actions_summary"
+            prompt: "Summary of all actions taken"
+
+      - id: "close_003"
+        step: "Identify residual risks"
+        description: "Note any remaining vulnerabilities or concerns"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 15
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "residual_risks"
+            prompt: "List of residual risks"
+
+      - id: "close_004"
+        step: "Recommend follow-up actions"
+        description: "Suggest improvements to prevent similar incidents"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: ["close_001", "close_002", "close_003"]
+        evidence_required:
+          - type: "text"
+            name: "recommendations"
+            prompt: "Recommended follow-up actions"
 
 # Risk Assessment Criteria
 risk_factors:
@@ -127,11 +454,13 @@ risk_factors:
     - attachment_opened: "yes"
     - mfa_enabled: "no"
     - suspicious_signins_observed: "yes"
+    - malware_detected: true
 
   medium_risk:
     - user_clicked: "yes"
     - credentials_entered: "unknown"
     - other_affected_users: "yes"
+    - similar_emails_found: true
 
   low_risk:
     - user_clicked: "no"
@@ -141,15 +470,29 @@ risk_factors:
 # Escalation Criteria
 escalation:
   immediate:
-    - "Confirmed account compromise with active unauthorized access"
-    - "Malware execution detected"
-    - "Data exfiltration suspected"
+    criteria:
+      - "Confirmed account compromise with active unauthorized access"
+      - "Malware execution detected"
+      - "Data exfiltration suspected"
+    notify_roles:
+      - "incident_commander"
+      - "security_admin"
+    additional_roles_required:
+      - "security_director"
+      - "ciso"
 
   standard:
-    - "Credentials entered but MFA prevented access"
-    - "Multiple users affected (>10)"
-    - "Executive or high-privilege account targeted"
+    criteria:
+      - "Credentials entered but MFA prevented access"
+      - "Multiple users affected (>10)"
+      - "Executive or high-privilege account targeted"
+    notify_roles:
+      - "incident_commander"
+      - "communications_lead"
 
   low_priority:
-    - "No user interaction with phishing email"
-    - "Email caught by filters before delivery"
+    criteria:
+      - "No user interaction with phishing email"
+      - "Email caught by filters before delivery"
+    notify_roles:
+      - "incident_commander"

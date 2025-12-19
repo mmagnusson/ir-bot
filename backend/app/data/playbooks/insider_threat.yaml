@@ -1,4 +1,5 @@
 # Insider Threat Incident Response Playbook
+# Enhanced with role-based workflows, dependencies, and evidence tracking
 # Based on MITRE ATT&CK T1078 (Valid Accounts), T1213 (Data from Information Repositories)
 
 incident_type: insider_threat
@@ -14,352 +15,467 @@ mitre_attack:
     - "T1213 - Data from Information Repositories"
     - "T1005 - Data from Local System"
     - "T1567 - Exfiltration Over Web Service"
-    - "T1530 - Data from Cloud Storage Object"
+
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads response, coordinates with HR and legal"
+    required: true
+
+  insider_threat_analyst:
+    name: "Insider Threat Analyst"
+    description: "Behavioral analysis and evidence collection"
+    required: true
+
+  hr_representative:
+    name: "HR Representative"
+    description: "Employee records and disciplinary coordination"
+    required: true
+
+  legal_counsel:
+    name: "Legal Counsel"
+    description: "Legal holds and potential prosecution"
+    required: true
+
+  security_admin:
+    name: "Security Administrator"
+    description: "Access revocation and system controls"
+    required: true
 
 phases:
   intake:
     description: "Initial insider threat detection and assessment"
+    primary_role: "incident_commander"
+    handoff_to: "insider_threat_analyst"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      sign_off_required: false
+      checklist_completion_threshold: 100
+
     required_fields:
       - suspected_user
       - suspicious_behavior
       - threat_type
       - time_of_detection
 
-    initial_questions:
-      - "What suspicious behavior was observed?"
-      - "Is the insider a current employee, contractor, or former employee?"
-      - "What is the user's role and access level?"
-      - "Has the user exhibited prior concerning behavior?"
-      - "Was this detected by automated monitoring or reported?"
-      - "Is the threat malicious, negligent, or compromised account?"
-      - "Has the user announced resignation or shown signs of dissatisfaction?"
+    checklist:
+      - id: "intake_001"
+        step: "Confirm insider threat incident"
+        description: "Verify this is an insider threat"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_reasoning"
+            prompt: "Why classified as insider threat?"
+
+      - id: "intake_002"
+        step: "Identify suspected insider"
+        description: "Document insider identity and role"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        parallel_group: null
+        dependencies: ["intake_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "suspected_user_identity"
+            prompt: "Suspected insider username/email"
+          - type: "text"
+            name: "user_role"
+            prompt: "User's job role and access level"
+          - type: "text"
+            name: "employee_status"
+            prompt: "Current employee, contractor, or former employee"
+
+      - id: "intake_003"
+        step: "Categorize threat type"
+        description: "Determine if malicious, negligent, or compromised"
+        assigned_to: "insider_threat_analyst"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: ["intake_002"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "threat_category"
+            prompt: "Threat type (malicious, negligent, compromised account)"
+
+      - id: "intake_004"
+        step: "Alert legal and HR immediately"
+        description: "Notify legal counsel and HR of insider threat"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        parallel_group: null
+        dependencies: ["intake_003"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "legal_hr_notified"
+            prompt: "Legal and HR notified?"
+          - type: "timestamp"
+            name: "notification_time"
+            prompt: "When notified?"
 
   investigation:
     description: "Determine insider actions, intent, and potential damage"
+    primary_role: "insider_threat_analyst"
+    supporting_roles: ["hr_representative", "security_admin"]
+    handoff_to: "incident_commander"
 
-    conditions:
-      data_access_investigation:
-        investigation_steps:
-          - "Review file server access logs for bulk downloads"
-          - "Check for access to sensitive data outside normal duties"
-          - "Review database query logs for unusual patterns"
-          - "Analyze cloud storage access (SharePoint, OneDrive, Google Drive)"
-          - "Check for screenshots or screen recording activity"
-          - "Review printing logs for sensitive documents"
-          - "Identify personal device usage (USB, external drives)"
-          - "Check email for forwarding sensitive information"
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 80
 
-      exfiltration_indicators:
-        investigation_steps:
-          - "Review DLP alerts for data transfers"
-          - "Check personal email usage from corporate systems"
-          - "Analyze cloud storage uploads (Dropbox, personal Google Drive)"
-          - "Review USB device connection logs and file transfers"
-          - "Check for use of encrypted containers or compression"
-          - "Review web proxy logs for file upload sites"
-          - "Analyze email attachments sent to personal accounts"
-          - "Check for code repository cloning (if developer)"
+    sla:
+      target_completion_hours: 48
+      escalation_threshold_hours: 72
+      notify_roles: ["incident_commander", "legal_counsel"]
 
-      privilege_abuse:
-        investigation_steps:
-          - "Review admin actions and privilege escalations"
-          - "Check for unauthorized access to systems/applications"
-          - "Review account creation or modification activities"
-          - "Analyze security policy changes or exceptions"
-          - "Check for disabling of logging or security controls"
-          - "Review backdoor account creation"
-          - "Identify attempts to cover tracks or delete logs"
+    checklist:
+      - id: "inv_001"
+        step: "Review file access logs"
+        description: "Check for bulk downloads or unusual access"
+        assigned_to: "insider_threat_analyst"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "unusual_file_access"
+            prompt: "Unusual file access detected?"
+          - type: "text"
+            name: "file_access_summary"
+            prompt: "Summary of suspicious file access"
 
-      behavioral_indicators:
-        investigation_steps:
-          - "Review badge swipe/physical access logs for off-hours access"
-          - "Check for remote access during unusual times"
-          - "Analyze patterns: working hours, location, access frequency"
-          - "Review HR records: disciplinary actions, performance issues"
-          - "Check for recent resignation announcement or job searching"
-          - "Identify financial stressors or personal issues (if known)"
-          - "Review security training completion and policy acknowledgments"
+      - id: "inv_002"
+        step: "Check DLP alerts"
+        description: "Review data loss prevention alerts"
+        assigned_to: "insider_threat_analyst"
+        estimated_time_minutes: 30
+        parallel_group: "data_analysis"
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "dlp_alerts_found"
+            prompt: "DLP alerts found?"
+          - type: "text"
+            name: "dlp_alert_details"
+            prompt: "DLP alert details"
+            optional: true
 
-      collaboration_assessment:
-        investigation_steps:
-          - "Identify if insider is working with external parties"
-          - "Check for communication with competitors"
-          - "Review social media for connections to external entities"
-          - "Analyze timing of activities vs. external events"
-          - "Check for unusual meeting schedules or contacts"
-          - "Review travel records for visits to competitor locations"
+      - id: "inv_003"
+        step: "Review USB/removable media usage"
+        description: "Check for data transfers to USB drives"
+        assigned_to: "insider_threat_analyst"
+        estimated_time_minutes: 30
+        parallel_group: "data_analysis"
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "usb_usage_detected"
+            prompt: "USB/removable media usage detected?"
+
+      - id: "inv_004"
+        step: "Analyze email for data exfiltration"
+        description: "Check for emails to personal accounts"
+        assigned_to: "insider_threat_analyst"
+        estimated_time_minutes: 45
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "email_exfiltration"
+            prompt: "Email exfiltration detected?"
+
+      - id: "inv_005"
+        step: "Review HR records"
+        description: "Check disciplinary history, performance issues"
+        assigned_to: "hr_representative"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "hr_background"
+            prompt: "Relevant HR history (disciplinary, performance, resignation)"
+
+      - id: "inv_006"
+        step: "Analyze behavioral patterns"
+        description: "Review access patterns, off-hours activity"
+        assigned_to: "insider_threat_analyst"
+        estimated_time_minutes: 45
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "behavioral_anomalies"
+            prompt: "Description of behavioral anomalies"
+
+      - id: "inv_007"
+        step: "Assess data compromise scope"
+        description: "Determine what data was accessed/exfiltrated"
+        assigned_to: "insider_threat_analyst"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: ["inv_001", "inv_004"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "compromised_data"
+            prompt: "Description of data accessed/exfiltrated"
+          - type: "boolean"
+            name: "data_exfiltrated"
+            prompt: "Was data exfiltrated?"
 
   containment:
     description: "Stop insider actions while preserving evidence"
+    primary_role: "security_admin"
+    supporting_roles: ["legal_counsel", "hr_representative"]
+    handoff_to: "legal_counsel"
 
-    conditions:
-      active_malicious_insider:
-        triggers_when:
-          threat_type: "malicious"
-          activity_ongoing: "yes"
-        containment_actions:
-          - "Disable all user accounts immediately (do NOT notify user first)"
-          - "Revoke VPN and remote access immediately"
-          - "Disable physical access badges"
-          - "Block user's devices from network (MAC address filtering)"
-          - "Preserve all account data and logs (legal hold)"
-          - "Monitor for attempts to access via personal devices"
-          - "Notify legal and HR teams immediately"
-          - "Consider law enforcement notification"
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
 
-      employee_separation_risk:
-        triggers_when:
-          employee_status: "terminating"
-        containment_actions:
-          - "Coordinate access revocation with HR separation timing"
-          - "Enable enhanced monitoring before separation date"
-          - "Restrict access to sensitive systems/data"
-          - "Review recent data access and transfers"
-          - "Collect company devices on separation day"
-          - "Conduct exit interview regarding data/access"
-          - "Disable accounts immediately upon separation"
+    sla:
+      target_completion_hours: 2
+      escalation_threshold_hours: 4
+      notify_roles: ["incident_commander"]
 
-      negligent_insider:
-        triggers_when:
-          threat_type: "negligent"
-        containment_actions:
-          - "Restrict access to systems until training completed"
-          - "Enable supervised access with manager oversight"
-          - "Implement additional DLP controls for user"
-          - "Require security refresher training"
-          - "Document incident for performance review"
+    checklist:
+      - id: "cont_001"
+        step: "Place legal hold on all insider data"
+        description: "Preserve evidence per legal requirements"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "legal_hold_placed"
+            prompt: "Legal hold placed?"
+          - type: "timestamp"
+            name: "legal_hold_time"
+            prompt: "When was legal hold placed?"
 
-      compromised_account:
-        triggers_when:
-          threat_type: "compromised"
-        containment_actions:
-          - "Force password reset immediately"
-          - "Revoke all active sessions"
-          - "Reset MFA tokens"
-          - "Review and remove suspicious email rules"
-          - "Check for backdoor access or persistence mechanisms"
-          - "Follow account compromise playbook procedures"
+      - id: "cont_002"
+        step: "Disable user accounts (do NOT notify user)"
+        description: "Revoke all system access immediately"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 5
+        parallel_group: "access_revocation"
+        dependencies: ["cont_001"]
+        conditions:
+          triggers_when:
+            threat_category: "malicious"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "accounts_disabled"
+            prompt: "All accounts disabled?"
+          - type: "timestamp"
+            name: "disable_time"
+            prompt: "When disabled?"
+
+      - id: "cont_003"
+        step: "Revoke VPN and remote access"
+        description: "Block remote access immediately"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 5
+        parallel_group: "access_revocation"
+        dependencies: ["cont_001"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "remote_access_revoked"
+            prompt: "Remote access revoked?"
+
+      - id: "cont_004"
+        step: "Disable physical access badges"
+        description: "Revoke building access"
+        assigned_to: "hr_representative"
+        estimated_time_minutes: 5
+        parallel_group: "access_revocation"
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "badge_disabled"
+            prompt: "Physical access disabled?"
+
+      - id: "cont_005"
+        step: "Block user devices from network"
+        description: "MAC address filtering for user's devices"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "devices_blocked"
+            prompt: "Devices blocked from network?"
+
+      - id: "cont_006"
+        step: "Collect company devices"
+        description: "Secure laptops, phones, USB drives"
+        assigned_to: "hr_representative"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: ["cont_002"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "devices_collected"
+            prompt: "Company devices collected?"
+          - type: "text"
+            name: "devices_list"
+            prompt: "List of devices collected"
 
   remediation:
-    description: "Recover from insider threat and strengthen controls"
+    description: "Recovery and legal proceedings"
+    primary_role: "legal_counsel"
+    supporting_roles: ["hr_representative", "security_admin"]
+    handoff_to: "incident_commander"
 
-    standard_steps:
-      - "Conduct forensic analysis of insider's systems"
-      - "Identify all data accessed, copied, or exfiltrated"
-      - "Determine if intellectual property was stolen"
-      - "Assess business impact and competitive damage"
-      - "Review access controls and implement least privilege"
-      - "Enhance DLP policies to prevent similar incidents"
-      - "Implement user behavior analytics (UBA) if not present"
-      - "Review and update privileged access management"
-      - "Enable additional logging for high-risk roles"
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 90
 
-    legal_and_hr_actions:
-      - "Document all evidence following chain of custody"
-      - "Coordinate with legal on potential prosecution"
-      - "Determine if civil action is appropriate (NDA violation, etc.)"
-      - "Coordinate termination with legal and HR if employee"
-      - "Send cease and desist letter if appropriate"
-      - "Notify law enforcement if criminal activity suspected"
-      - "Consider trade secret litigation if IP stolen"
-      - "Review non-compete and confidentiality agreements"
+    checklist:
+      - id: "rem_001"
+        step: "Conduct forensic analysis of devices"
+        description: "Forensic examination of collected devices"
+        assigned_to: "insider_threat_analyst"
+        estimated_time_minutes: 240
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "forensic_findings"
+            prompt: "Summary of forensic findings"
 
-    organizational_remediation:
-      - "Conduct lessons learned with security and HR teams"
-      - "Review employee background check procedures"
-      - "Enhance pre-employment screening if gaps identified"
-      - "Improve employee monitoring and anomaly detection"
-      - "Update security awareness training on insider threats"
-      - "Review offboarding procedures and access revocation"
-      - "Implement separation of duties for critical functions"
-      - "Create insider threat program if not present"
+      - id: "rem_002"
+        step: "Coordinate with HR on employment action"
+        description: "Termination or disciplinary procedures"
+        assigned_to: "hr_representative"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "employment_action"
+            prompt: "Employment action taken (termination, suspension, etc.)"
 
-    affected_party_notification:
-      - "Notify customers if their data was compromised"
-      - "Inform business partners if shared data affected"
-      - "Consider regulatory notification if data breach threshold met"
-      - "Notify affected departments of intellectual property loss"
+      - id: "rem_003"
+        step: "Assess law enforcement notification"
+        description: "Determine if criminal prosecution warranted"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 90
+        parallel_group: null
+        dependencies: ["rem_001"]
+        evidence_required:
+          - type: "boolean"
+            name: "law_enforcement_notified"
+            prompt: "Law enforcement notified?"
+          - type: "text"
+            name: "law_enforcement_details"
+            prompt: "Details of law enforcement involvement"
+            optional: true
+
+      - id: "rem_004"
+        step: "Implement enhanced monitoring"
+        description: "Deploy additional insider threat controls"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 120
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "monitoring_enhancements"
+            prompt: "Description of enhanced monitoring implemented"
 
   closure:
-    description: "Final documentation and program improvements"
+    description: "Final documentation and lessons learned"
+    primary_role: "incident_commander"
 
-    required_documentation:
-      - "Insider identity, role, and access level"
-      - "Timeline of suspicious activities"
-      - "Data and systems accessed or compromised"
-      - "Evidence of intent (malicious vs. negligent)"
-      - "Containment actions and timing"
-      - "Forensic findings and data exfiltration confirmation"
-      - "Legal actions taken or recommended"
-      - "HR actions (termination, disciplinary action)"
+    checklist:
+      - id: "close_001"
+        step: "Create comprehensive timeline"
+        description: "Document complete insider threat timeline"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 90
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete incident timeline"
 
-    program_improvements:
-      - "Update insider threat detection rules"
-      - "Enhance monitoring for similar behavior patterns"
-      - "Review access controls for affected data/systems"
-      - "Improve employee lifecycle security processes"
-      - "Consider implementing insider threat program maturity model"
+      - id: "close_002"
+        step: "Document all evidence collected"
+        description: "Catalog all evidence for potential legal proceedings"
+        assigned_to: "insider_threat_analyst"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "evidence_inventory"
+            prompt: "Complete evidence inventory"
 
-# Risk Assessment Criteria
+      - id: "close_003"
+        step: "Conduct lessons learned"
+        description: "Post-incident review with stakeholders"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 120
+        parallel_group: null
+        dependencies: ["close_001", "close_002"]
+        evidence_required:
+          - type: "text"
+            name: "lessons_learned"
+            prompt: "Key lessons learned and improvements"
+
 risk_factors:
   critical_risk:
-    - access_level: "admin"
-    - data_exfiltrated: "yes"
-    - intellectual_property_stolen: "yes"
-    - working_with_competitor: "yes"
-    - threat_type: "malicious"
+    - threat_category: "malicious"
+    - data_exfiltrated: true
+    - privileged_user: true
+    - trade_secrets_accessed: true
 
   high_risk:
-    - access_level: "privileged"
-    - sensitive_data_accessed: "yes"
-    - bulk_downloads: "yes"
+    - threat_category: "malicious"
+    - sensitive_data_accessed: true
     - employee_status: "terminating"
-    - prior_incidents: "yes"
 
   medium_risk:
-    - threat_type: "negligent"
+    - threat_category: "negligent"
     - policy_violations: "yes"
-    - unusual_access_patterns: "yes"
-    - data_accessed_outside_role: "yes"
 
-  low_risk:
-    - threat_type: "negligent"
-    - minor_policy_violation: "yes"
-    - no_data_exfiltration: "yes"
-    - first_time_incident: "yes"
-
-# Escalation Criteria
 escalation:
   immediate:
-    - "Admin or privileged account involved"
-    - "Intellectual property or trade secrets stolen"
-    - "Data exfiltration confirmed"
-    - "Evidence of working with competitor"
-    - "Active sabotage or system damage"
-    - "Law enforcement notification required"
+    criteria:
+      - "Malicious insider with data exfiltration"
+      - "Privileged user abuse"
+      - "Trade secrets or IP theft"
+      - "Active ongoing exfiltration"
+    notify_roles:
+      - "incident_commander"
+      - "legal_counsel"
+      - "hr_representative"
+    additional_roles_required:
+      - "ciso"
+      - "ceo"
 
   standard:
-    - "Sensitive data accessed outside of role"
-    - "Bulk data downloads detected"
-    - "Employee with separation risk"
-    - "Multiple policy violations"
-    - "Personal device usage for data transfer"
-
-  low_priority:
-    - "Negligent policy violation only"
-    - "No sensitive data involved"
-    - "Single incident, correctable behavior"
-    - "Security awareness gap identified"
-
-# Insider Threat Types
-threat_types:
-  malicious:
-    description: "Intentional harm or theft"
-    indicators:
-      - "Data exfiltration to personal accounts"
-      - "Access to data outside job responsibilities"
-      - "Attempts to cover tracks or delete logs"
-      - "Communication with competitors"
-      - "Financial motivation or grudge"
-    response: "Immediate containment, legal action, termination"
-
-  negligent:
-    description: "Unintentional security violations"
-    indicators:
-      - "Sending sensitive data to personal email for convenience"
-      - "Storing data on unapproved cloud services"
-      - "Sharing credentials with colleagues"
-      - "Falling for phishing attacks"
-      - "Poor security hygiene"
-    response: "Remedial training, policy reinforcement, monitoring"
-
-  compromised:
-    description: "Legitimate account used by attacker"
-    indicators:
-      - "Unusual login locations or times"
-      - "Multiple failed authentication attempts followed by success"
-      - "Actions inconsistent with user's normal behavior"
-      - "Access from impossible travel locations"
-      - "Concurrent sessions from different locations"
-    response: "Account compromise playbook, credential reset, MFA"
-
-# Insider Threat Indicators by Role
-role_based_indicators:
-  IT_administrator:
-    high_risk_activities:
-      - "Creating backdoor accounts"
-      - "Disabling logging or monitoring"
-      - "Unauthorized access to systems"
-      - "Privilege escalation outside duties"
-      - "Downloading sensitive data or code"
-
-  developer:
-    high_risk_activities:
-      - "Cloning entire code repositories to personal accounts"
-      - "Accessing production data without authorization"
-      - "Introducing backdoors into code"
-      - "Downloading proprietary algorithms or IP"
-      - "Pushing code to external repositories"
-
-  finance_employee:
-    high_risk_activities:
-      - "Accessing financial records outside normal duties"
-      - "Unauthorized wire transfers or payment changes"
-      - "Exporting financial reports to personal devices"
-      - "Accessing executive compensation data"
-      - "Downloading customer payment information"
-
-  sales_employee:
-    high_risk_activities:
-      - "Mass downloading of customer lists"
-      - "Accessing pricing strategies before departure"
-      - "Downloading sales forecasts or pipeline data"
-      - "Forwarding customer contacts to personal email"
-      - "Meeting with competitors during employment"
-
-# Detection Methods
-detection_mechanisms:
-  automated:
-    - "User and Entity Behavior Analytics (UEBA)"
-    - "Data Loss Prevention (DLP) alerts"
-    - "Privileged Access Management (PAM) alerts"
-    - "File integrity monitoring"
-    - "Database activity monitoring"
-    - "Network traffic analysis"
-    - "Endpoint detection and response (EDR)"
-
-  manual:
-    - "Manager reporting unusual behavior"
-    - "Peer reporting concerns"
-    - "Security team proactive hunting"
-    - "HR referral for at-risk employees"
-    - "Third-party tip (competitor, customer)"
-
-# Prevention Best Practices
-prevention:
-  technical_controls:
-    - "Implement least privilege access"
-    - "Deploy DLP with content inspection"
-    - "Enable user behavior analytics (UBA/UEBA)"
-    - "Implement privileged access management (PAM)"
-    - "Use file activity monitoring and alerting"
-    - "Deploy endpoint DLP on workstations"
-    - "Restrict USB and removable media usage"
-    - "Monitor cloud storage and email forwarding"
-
-  process_controls:
-    - "Conduct background checks during hiring"
-    - "Require signed NDAs and acceptable use policies"
-    - "Implement separation of duties for critical functions"
-    - "Establish formal offboarding procedures"
-    - "Conduct exit interviews regarding data/access"
-    - "Review access quarterly for appropriateness"
-    - "Create insider threat working group (Security, HR, Legal)"
-
-  cultural_controls:
-    - "Foster positive work environment"
-    - "Provide clear paths for grievance reporting"
-    - "Recognize and reward employees"
-    - "Address performance issues promptly"
-    - "Maintain open communication channels"
-    - "Train managers on insider threat indicators"
+    criteria:
+      - "Policy violations with data access"
+      - "Departing employee suspicious activity"
+    notify_roles:
+      - "incident_commander"
+      - "hr_representative"

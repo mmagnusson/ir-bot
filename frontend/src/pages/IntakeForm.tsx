@@ -41,7 +41,28 @@ const IntakeForm: React.FC = () => {
 
       // Map form data to the appropriate data field based on incident type
       const dataField = `${incidentType}_data`;
-      payload[dataField] = formData;
+
+      // Process form data - convert datetime-local to ISO format
+      const processedData = { ...formData };
+
+      // Convert datetime-local to ISO 8601 format
+      if (processedData.time_of_discovery) {
+        processedData.time_of_discovery = new Date(processedData.time_of_discovery).toISOString();
+      }
+
+      // Ensure numeric fields are numbers, not strings
+      if (processedData.estimated_records !== undefined && processedData.estimated_records !== '') {
+        const parsed = typeof processedData.estimated_records === 'string'
+          ? parseInt(processedData.estimated_records, 10)
+          : processedData.estimated_records;
+        processedData.estimated_records = isNaN(parsed) ? 0 : parsed;
+      }
+
+      payload[dataField] = processedData;
+
+      console.log('Form data:', formData); // Debug log
+      console.log('Processed data:', processedData); // Debug log
+      console.log('Submitting payload:', JSON.stringify(payload, null, 2)); // Debug log
 
       const incident = await incidentAPI.createIncident(payload);
       navigate(`/investigation/${incident.incident_id}`);
@@ -59,6 +80,7 @@ const IntakeForm: React.FC = () => {
         }
       }
 
+      console.error('Error creating incident:', err.response?.data); // Debug log
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -66,7 +88,12 @@ const IntakeForm: React.FC = () => {
   };
 
   const handleChange = (field: string, value: any) => {
-    setFormData((prev: any) => ({ ...prev, [field]: value }));
+    console.log(`Field changed: ${field} =`, value); // Debug log
+    setFormData((prev: any) => {
+      const updated = { ...prev, [field]: value };
+      console.log('Updated formData:', updated); // Debug log
+      return updated;
+    });
   };
 
   const handleIncidentTypeChange = (newType: IncidentType) => {
@@ -252,24 +279,55 @@ const IntakeForm: React.FC = () => {
       </div>
 
       <div className="form-group">
-        <label htmlFor="number_of_records">Estimated Number of Records Affected</label>
+        <label htmlFor="estimated_records">
+          Estimated Number of Records Affected <span className="required">*</span>
+        </label>
         <input
           type="number"
-          id="number_of_records"
-          value={formData.number_of_records || ''}
-          onChange={(e) => handleChange('number_of_records', parseInt(e.target.value))}
+          id="estimated_records"
+          value={formData.estimated_records || ''}
+          onChange={(e) => handleChange('estimated_records', e.target.value)}
+          required
           placeholder="e.g., 1000"
+          min="0"
         />
       </div>
 
       <div className="form-group">
-        <label htmlFor="breach_source">How was the data breached?</label>
+        <label htmlFor="breach_method">
+          How was the data breached? <span className="required">*</span>
+        </label>
+        <textarea
+          id="breach_method"
+          value={formData.breach_method || ''}
+          onChange={(e) => handleChange('breach_method', e.target.value)}
+          required
+          rows={4}
+          placeholder="e.g., SQL injection, exposed S3 bucket, phishing..."
+        />
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="time_of_discovery">
+          When was the breach discovered? <span className="required">*</span>
+        </label>
+        <input
+          type="datetime-local"
+          id="time_of_discovery"
+          value={formData.time_of_discovery || ''}
+          onChange={(e) => handleChange('time_of_discovery', e.target.value)}
+          required
+        />
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="breach_source">Additional Details</label>
         <textarea
           id="breach_source"
           value={formData.breach_source || ''}
           onChange={(e) => handleChange('breach_source', e.target.value)}
           rows={4}
-          placeholder="e.g., SQL injection, exposed S3 bucket..."
+          placeholder="Any additional context about the breach..."
         />
       </div>
     </>
@@ -508,17 +566,7 @@ const IntakeForm: React.FC = () => {
       </div>
 
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0 }}>Initial Triage Intake</h2>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => navigate('/classify')}
-            style={{ background: '#3b82f6', color: 'white', fontSize: '14px' }}
-          >
-            🤖 AI Classify from Logs
-          </button>
-        </div>
+        <h2>Initial Triage Intake</h2>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">

@@ -87,25 +87,6 @@ export interface IncidentSummary {
   timeline: any[];
 }
 
-export interface IncidentTypeClassification {
-  incident_type: string;
-  confidence: number;
-  reasoning: string;
-  key_indicators: string[];
-}
-
-export interface ClassificationResponse {
-  primary_classification: IncidentTypeClassification;
-  alternative_classifications: IncidentTypeClassification[];
-  raw_data_summary: string;
-  suggested_next_steps: string[];
-}
-
-export interface ClassificationRequest {
-  raw_data: string;
-  context?: string;
-}
-
 export const incidentAPI = {
   createIncident: async (data: IncidentCreateRequest): Promise<IncidentState> => {
     const response = await apiClient.post('/api/incidents/', data);
@@ -125,16 +106,6 @@ export const incidentAPI = {
     return response.data;
   },
 
-  assessIncident: async (incidentId: string): Promise<Assessment> => {
-    const response = await apiClient.post(`/api/incidents/${incidentId}/assess`);
-    return response.data;
-  },
-
-  getContainmentGuidance: async (incidentId: string): Promise<Assessment> => {
-    const response = await apiClient.post(`/api/incidents/${incidentId}/containment`);
-    return response.data;
-  },
-
   exportSummary: async (incidentId: string): Promise<IncidentSummary> => {
     const response = await apiClient.get(`/api/incidents/${incidentId}/export`);
     return response.data;
@@ -142,11 +113,6 @@ export const incidentAPI = {
 
   listIncidents: async (): Promise<IncidentState[]> => {
     const response = await apiClient.get('/api/incidents/');
-    return response.data;
-  },
-
-  classifyIncident: async (data: ClassificationRequest): Promise<ClassificationResponse> => {
-    const response = await apiClient.post('/api/incidents/classify', data);
     return response.data;
   },
 };

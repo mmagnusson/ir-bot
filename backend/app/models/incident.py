@@ -1,7 +1,8 @@
-from typing import Optional, Dict, List, Literal
+from typing import Optional, Dict, List, Literal, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
+import uuid
 
 
 class IncidentType(str, Enum):
@@ -13,6 +14,118 @@ class IncidentType(str, Enum):
     INSIDER_THREAT = "insider_threat"
     DDOS = "ddos"
     UNAUTHORIZED_ACCESS = "unauthorized_access"
+
+
+# NEW: Playbook execution enums and models
+
+class StepStatus(str, Enum):
+    """Status of a playbook step"""
+    NOT_STARTED = "not_started"
+    IN_PROGRESS = "in_progress"
+    BLOCKED = "blocked"
+    COMPLETED = "completed"
+    SKIPPED = "skipped"
+
+
+class EvidenceType(str, Enum):
+    """Types of evidence that can be collected"""
+    TEXT = "text"
+    FILE = "file"
+    BOOLEAN = "boolean"
+    NUMBER = "number"
+    TIMESTAMP = "timestamp"
+    URL = "url"
+
+
+class EvidenceItem(BaseModel):
+    """Single piece of evidence collected for a step"""
+    evidence_type: EvidenceType
+    name: str
+    value: Any
+    collected_at: datetime = Field(default_factory=datetime.utcnow)
+    collected_by: Optional[str] = None  # Username or role
+
+
+class StepExecution(BaseModel):
+    """Tracks execution of a single playbook step"""
+    step_id: str
+    status: StepStatus = StepStatus.NOT_STARTED
+    assigned_to: Optional[str] = None  # Role name
+    assigned_user: Optional[str] = None  # Actual username
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    evidence: List[EvidenceItem] = Field(default_factory=list)
+    notes: Optional[str] = None
+    blocked_reason: Optional[str] = None
+
+    @property
+    def time_spent_minutes(self) -> Optional[float]:
+        """Calculate time spent on this step"""
+        if self.started_at and self.completed_at:
+            delta = self.completed_at - self.started_at
+            return delta.total_seconds() / 60
+        return None
+
+
+class PhaseExecution(BaseModel):
+    """Tracks execution of a phase with all its steps"""
+    phase_name: str
+    status: Literal["not_started", "in_progress", "completed"] = "not_started"
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    steps: Dict[str, StepExecution] = Field(default_factory=dict)
+    signed_off_by: Optional[str] = None
+    signed_off_at: Optional[datetime] = None
+    sla_target_completion: Optional[datetime] = None
+
+    @property
+    def completion_percentage(self) -> float:
+        """Calculate percentage of completed steps"""
+        if not self.steps:
+            return 0.0
+        completed = sum(1 for s in self.steps.values() if s.status == StepStatus.COMPLETED)
+        return (completed / len(self.steps)) * 100
+
+    @property
+    def is_sla_breached(self) -> bool:
+        """Check if SLA has been breached"""
+        if self.sla_target_completion and not self.completed_at:
+            return datetime.utcnow() > self.sla_target_completion
+        return False
+
+
+class RoleAssignment(BaseModel):
+    """Assignment of a user to a role"""
+    role_name: str
+    assigned_user: Optional[str] = None  # Username or email
+    assigned_at: Optional[datetime] = None
+    required: bool = False
+
+
+class PhaseHandoff(BaseModel):
+    """Record of a phase transition handoff"""
+    from_phase: str
+    to_phase: str
+    from_role: str
+    to_role: str
+    initiated_by: str
+    initiated_at: datetime = Field(default_factory=datetime.utcnow)
+    signed_off_by: Optional[str] = None
+    signed_off_at: Optional[datetime] = None
+    handoff_notes: Optional[str] = None
+    checklist_completion_at_handoff: float  # Percentage
+    requirements_met: bool = False
+    requirements_check: Dict[str, bool] = Field(default_factory=dict)
+
+
+class NotificationLog(BaseModel):
+    """Log of notifications sent"""
+    notification_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    trigger: str
+    message: str
+    notified_roles: List[str]
+    notified_at: datetime = Field(default_factory=datetime.utcnow)
+    acknowledged_by: List[str] = Field(default_factory=list)
 
 
 class YesNoUnknown(str, Enum):
@@ -77,9 +190,10 @@ class AccountCompromiseIncidentData(BaseModel):
 class DataBreachIncidentData(BaseModel):
     """Structured data for data breach incidents"""
     data_type_affected: str = Field(..., description="Type of data affected (PII, credentials, etc.)")
-    number_of_records: Optional[int] = Field(None, description="Estimated number of records affected")
-    breach_source: str = Field(default="", description="How was the data breached?")
-    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+    estimated_records: int = Field(..., description="Estimated number of records affected")
+    breach_method: str = Field(..., description="How was the data breached?")
+    time_of_discovery: datetime = Field(..., description="When was the breach discovered?")
+    breach_source: Optional[str] = Field(None, description="Additional details about the breach source")
 
     # Investigation findings
     exfiltration_confirmed: Optional[YesNoUnknown] = None
@@ -158,14 +272,16 @@ class IncidentState(BaseModel):
     ddos_data: Optional[DDoSIncidentData] = None
     unauthorized_access_data: Optional[UnauthorizedAccessIncidentData] = None
 
-    # AI-generated outputs
-    assessment_history: List[Dict] = Field(default_factory=list, description="History of AI assessments")
-    current_assessment: Optional[Dict] = None
-
     # Actions taken
     actions_taken: List[str] = Field(default_factory=list)
     open_risks: List[str] = Field(default_factory=list)
     recommended_followups: List[str] = Field(default_factory=list)
+
+    # NEW: Playbook execution tracking
+    role_assignments: Dict[str, RoleAssignment] = Field(default_factory=dict)
+    phase_executions: Dict[str, PhaseExecution] = Field(default_factory=dict)
+    handoff_history: List[PhaseHandoff] = Field(default_factory=list)
+    notifications: List[NotificationLog] = Field(default_factory=list)
 
 
 class IncidentCreateRequest(BaseModel):
@@ -195,16 +311,6 @@ class IncidentUpdateRequest(BaseModel):
     status: Optional[str] = None
 
 
-class AIAssessmentResponse(BaseModel):
-    """Structured response from AI assessment"""
-    what_we_know: List[str]
-    what_we_need: List[str]
-    next_steps: List[str]
-    containment_actions: Optional[List[str]] = None
-    remediation_steps: Optional[List[str]] = None
-    risk_notes: Optional[List[str]] = None
-
-
 class IncidentSummaryExport(BaseModel):
     """Final incident summary for export"""
     incident_id: str
@@ -218,29 +324,31 @@ class IncidentSummaryExport(BaseModel):
     timeline: List[Dict]
 
 
-class IncidentClassificationRequest(BaseModel):
-    """Request to classify raw incident data"""
-    raw_data: str = Field(..., description="Raw logs, description, or event data to classify")
-    context: Optional[str] = Field(None, description="Additional context about the incident")
+# NEW: Request/Response models for playbook execution
+
+class StepUpdateRequest(BaseModel):
+    """Request to update a step's status and evidence"""
+    step_id: str
+    status: Optional[StepStatus] = None
+    assigned_user: Optional[str] = None
+    notes: Optional[str] = None
+    blocked_reason: Optional[str] = None
+    evidence: Optional[List[EvidenceItem]] = None
 
 
-class IncidentTypeClassification(BaseModel):
-    """Classification result for a single incident type"""
-    incident_type: IncidentType
-    confidence: float = Field(..., ge=0.0, le=100.0, description="Confidence percentage (0-100)")
-    reasoning: str = Field(..., description="Brief explanation of why this type was suggested")
-    key_indicators: List[str] = Field(default_factory=list, description="Key indicators found in the data")
+class RoleAssignmentRequest(BaseModel):
+    """Request to assign a user to a role"""
+    role_name: str
+    assigned_user: str
 
 
-class IncidentClassificationResponse(BaseModel):
-    """Response containing classification suggestions"""
-    primary_classification: IncidentTypeClassification
-    alternative_classifications: List[IncidentTypeClassification] = Field(
-        default_factory=list,
-        description="Other possible incident types, sorted by confidence"
-    )
-    raw_data_summary: str = Field(..., description="Summary of the analyzed data")
-    suggested_next_steps: List[str] = Field(
-        default_factory=list,
-        description="Immediate steps the analyst should take"
-    )
+class PhaseHandoffRequest(BaseModel):
+    """Request to initiate a phase handoff"""
+    to_phase: str
+    handoff_notes: Optional[str] = None
+
+
+class PhaseSignOffRequest(BaseModel):
+    """Request to sign off on a handoff"""
+    signed_off_by: str
+    notes: Optional[str] = None

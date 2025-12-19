@@ -1,4 +1,5 @@
 # Data Breach Incident Response Playbook
+# Enhanced with role-based workflows, dependencies, and evidence tracking
 # Based on MITRE ATT&CK T1052.001 (Exfiltration over USB), T1048 (Exfiltration over Alternative Protocol)
 
 incident_type: data_breach
@@ -14,163 +15,722 @@ mitre_attack:
     - "T1537 - Transfer Data to Cloud Account"
     - "T1567 - Exfiltration Over Web Service"
 
+# Role definitions for this incident type
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads response, coordinates with legal and executives"
+    required: true
+
+  data_forensics_analyst:
+    name: "Data Forensics Analyst"
+    description: "Investigates data exfiltration and access patterns"
+    required: true
+
+  legal_counsel:
+    name: "Legal Counsel"
+    description: "Regulatory compliance and breach notification"
+    required: true
+
+  privacy_officer:
+    name: "Privacy Officer"
+    description: "Data privacy assessment and affected party notification"
+    required: true
+
+  security_admin:
+    name: "Security Administrator"
+    description: "System containment and security controls"
+    required: true
+
+  communications_lead:
+    name: "Communications Lead"
+    description: "Public relations and stakeholder communication"
+    required: false
+    escalation_triggers: ["media_attention", "public_disclosure"]
+
 phases:
   intake:
     description: "Initial data breach identification and scoping"
+    primary_role: "incident_commander"
+    handoff_to: "data_forensics_analyst"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      sign_off_required: false
+      checklist_completion_threshold: 100
+
+    sla:
+      target_completion_hours: 1
+      escalation_threshold_hours: 2
+      notify_roles: ["incident_commander", "legal_counsel"]
+
     required_fields:
       - data_type_affected
       - estimated_records
       - breach_method
       - time_of_discovery
 
-    initial_questions:
-      - "What type of data was compromised (PII, PHI, PCI, trade secrets, etc.)?"
-      - "How many records/individuals are potentially affected?"
-      - "How was the breach discovered (monitoring alert, third-party, user report)?"
-      - "When did the breach occur vs. when was it discovered?"
-      - "Was data exfiltrated externally or just accessed internally?"
+    checklist:
+      - id: "intake_001"
+        step: "Confirm data breach incident"
+        description: "Verify this is a data breach incident"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_reasoning"
+            prompt: "Why is this classified as a data breach?"
+
+      - id: "intake_002"
+        step: "Identify data type affected"
+        description: "Determine what type of data was compromised"
+        assigned_to: "privacy_officer"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: ["intake_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "data_types"
+            prompt: "Data types affected (PII, PHI, PCI, trade secrets, credentials, etc.)"
+
+      - id: "intake_003"
+        step: "Estimate affected records count"
+        description: "Provide initial estimate of affected individuals/records"
+        assigned_to: "privacy_officer"
+        estimated_time_minutes: 15
+        parallel_group: null
+        dependencies: ["intake_002"]
+        critical: true
+        evidence_required:
+          - type: "number"
+            name: "estimated_records"
+            prompt: "Estimated number of records/individuals affected"
+
+      - id: "intake_004"
+        step: "Determine breach discovery method"
+        description: "Document how the breach was discovered"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 10
+        parallel_group: "initial_assessment"
+        dependencies: ["intake_001"]
+        evidence_required:
+          - type: "text"
+            name: "discovery_method"
+            prompt: "How was breach discovered (DLP alert, third-party notification, user report, etc.)?"
+
+      - id: "intake_005"
+        step: "Alert legal counsel immediately"
+        description: "Notify legal team of potential data breach"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        parallel_group: "initial_assessment"
+        dependencies: ["intake_002"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "legal_counsel_notified"
+            prompt: "Legal counsel notified?"
+          - type: "timestamp"
+            name: "legal_notification_time"
+            prompt: "When was legal counsel notified?"
 
   investigation:
     description: "Determine breach scope, method, and extent of data exposure"
+    primary_role: "data_forensics_analyst"
+    supporting_roles: ["privacy_officer", "security_admin"]
+    handoff_to: "incident_commander"
 
-    conditions:
-      data_exfiltration_confirmed:
-        triggers_when:
-          data_exfiltrated: "yes"
-        investigation_steps:
-          - "Review DLP (Data Loss Prevention) alerts and logs"
-          - "Analyze network egress traffic for data transfers"
-          - "Check file access logs for bulk downloads"
-          - "Review email logs for large attachments sent externally"
-          - "Inspect cloud storage sync logs (Dropbox, OneDrive, etc.)"
-          - "Check USB device connection logs"
-          - "Review web proxy logs for file upload activity"
-          - "Identify destination IPs/domains of exfiltration"
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
 
-      insider_threat_indicators:
-        investigation_steps:
-          - "Review employee access logs and badge swipes"
-          - "Check for privilege escalation attempts"
-          - "Review HR records for recent disciplinary actions"
-          - "Analyze user behavior patterns (off-hours access, unusual queries)"
-          - "Check for use of removable media or personal devices"
-          - "Review print logs for sensitive documents"
-          - "Investigate file server access patterns"
+    sla:
+      target_completion_hours: 24
+      escalation_threshold_hours: 48
+      notify_roles: ["incident_commander", "legal_counsel"]
 
-      external_attack_indicators:
-        investigation_steps:
-          - "Review firewall and IDS/IPS logs for intrusion indicators"
-          - "Check for compromised accounts or credentials"
-          - "Analyze web application logs for SQL injection, path traversal"
-          - "Review authentication logs for unauthorized access"
-          - "Check for malware or backdoors on affected systems"
-          - "Identify attack vector (phishing, exploit, misconfiguration)"
-          - "Timeline reconstruction from initial access to exfiltration"
+    checklist:
+      - id: "inv_001"
+        step: "Review DLP alerts and logs"
+        description: "Analyze Data Loss Prevention system for exfiltration indicators"
+        assigned_to: "data_forensics_analyst"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            data_exfiltrated: "yes"
+        evidence_required:
+          - type: "file"
+            name: "dlp_logs"
+            prompt: "Upload DLP logs/alerts"
+          - type: "text"
+            name: "dlp_findings"
+            prompt: "Summary of DLP findings"
 
-      data_classification:
-        investigation_steps:
-          - "Identify specific data elements compromised:"
-          - "  - PII: Names, SSN, DOB, addresses, phone numbers"
-          - "  - PHI: Medical records, diagnoses, prescriptions"
-          - "  - PCI: Credit card numbers, CVV, expiration dates"
-          - "  - Financial: Bank accounts, routing numbers"
-          - "  - Credentials: Passwords, API keys, certificates"
-          - "  - Trade secrets: Proprietary algorithms, customer lists"
-          - "Determine total number of affected individuals"
-          - "Assess sensitivity and regulatory implications"
+      - id: "inv_002"
+        step: "Analyze network egress traffic"
+        description: "Review network logs for large data transfers"
+        assigned_to: "data_forensics_analyst"
+        estimated_time_minutes: 45
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            data_exfiltrated: "yes"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "exfiltration_confirmed"
+            prompt: "Is data exfiltration confirmed?"
+          - type: "text"
+            name: "destination_ips"
+            prompt: "Destination IPs/domains for exfiltration"
+            optional: true
+          - type: "number"
+            name: "data_volume_mb"
+            prompt: "Estimated volume of data exfiltrated (MB)"
+            optional: true
+
+      - id: "inv_003"
+        step: "Check file access logs"
+        description: "Review file server logs for bulk downloads or unusual access"
+        assigned_to: "data_forensics_analyst"
+        estimated_time_minutes: 40
+        parallel_group: "access_analysis"
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "suspicious_file_access"
+            prompt: "Summary of suspicious file access patterns"
+
+      - id: "inv_004"
+        step: "Review email logs"
+        description: "Check for large attachments sent externally"
+        assigned_to: "data_forensics_analyst"
+        estimated_time_minutes: 30
+        parallel_group: "access_analysis"
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "data_emailed_externally"
+            prompt: "Was data sent via email?"
+          - type: "text"
+            name: "email_recipients"
+            prompt: "External email recipients"
+            optional: true
+
+      - id: "inv_005"
+        step: "Check cloud storage sync logs"
+        description: "Review cloud sync services (Dropbox, OneDrive, etc.)"
+        assigned_to: "data_forensics_analyst"
+        estimated_time_minutes: 25
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "cloud_sync_detected"
+            prompt: "Was data synced to personal cloud storage?"
+
+      - id: "inv_006"
+        step: "Check USB device logs"
+        description: "Review USB/removable media connection logs"
+        assigned_to: "data_forensics_analyst"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "usb_exfiltration"
+            prompt: "Was data copied to USB/removable media?"
+
+      - id: "inv_007"
+        step: "Identify breach source"
+        description: "Determine if insider threat or external attack"
+        assigned_to: "data_forensics_analyst"
+        estimated_time_minutes: 45
+        parallel_group: null
+        dependencies: ["inv_002"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "breach_source"
+            prompt: "Breach source (insider, external attacker, third-party, misconfiguration)"
+          - type: "text"
+            name: "source_details"
+            prompt: "Details of breach source/actor"
+
+      - id: "inv_008"
+        step: "Reconstruct breach timeline"
+        description: "Determine initial access to discovery timeline"
+        assigned_to: "data_forensics_analyst"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: ["inv_007"]
+        critical: true
+        evidence_required:
+          - type: "timestamp"
+            name: "initial_access_time"
+            prompt: "When did initial access occur?"
+          - type: "timestamp"
+            name: "exfiltration_time"
+            prompt: "When did exfiltration occur?"
+          - type: "text"
+            name: "breach_timeline"
+            prompt: "Complete breach timeline summary"
+
+      - id: "inv_009"
+        step: "Classify specific data elements"
+        description: "Document exact data elements compromised"
+        assigned_to: "privacy_officer"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "data_elements_list"
+            prompt: "Specific data elements (SSN, names, addresses, medical records, etc.)"
+
+      - id: "inv_010"
+        step: "Refine affected individuals count"
+        description: "Get accurate count of affected individuals"
+        assigned_to: "privacy_officer"
+        estimated_time_minutes: 45
+        parallel_group: null
+        dependencies: ["inv_009"]
+        critical: true
+        evidence_required:
+          - type: "number"
+            name: "confirmed_affected_count"
+            prompt: "Confirmed number of affected individuals"
+
+      - id: "inv_011"
+        step: "Assess regulatory notification requirements"
+        description: "Determine applicable regulations and notification thresholds"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: ["inv_009", "inv_010"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "notification_required"
+            prompt: "Is regulatory notification required?"
+          - type: "text"
+            name: "applicable_regulations"
+            prompt: "Applicable regulations (GDPR, HIPAA, CCPA, state laws, etc.)"
 
   containment:
     description: "Stop ongoing exfiltration and secure compromised systems"
+    primary_role: "security_admin"
+    supporting_roles: ["data_forensics_analyst"]
+    handoff_to: "legal_counsel"
 
-    conditions:
-      active_exfiltration:
-        triggers_when:
-          exfiltration_ongoing: "yes"
-        containment_actions:
-          - "Block destination IPs/domains at firewall immediately"
-          - "Disable compromised user accounts"
-          - "Revoke API keys and access tokens"
-          - "Quarantine affected systems from network"
-          - "Enable enhanced DLP rules to block data egress"
-          - "Disable external email forwarding organization-wide"
-          - "Restrict cloud storage sync temporarily"
-          - "Monitor for continued exfiltration attempts"
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
 
-      database_compromise:
-        containment_actions:
-          - "Isolate affected database servers"
-          - "Change all database credentials immediately"
-          - "Review and restrict database access permissions"
-          - "Enable database activity monitoring"
-          - "Patch SQL injection or other vulnerabilities"
-          - "Review and secure database backups"
+    sla:
+      target_completion_hours: 4
+      escalation_threshold_hours: 8
+      notify_roles: ["incident_commander"]
 
-      insider_threat_containment:
-        triggers_when:
-          breach_source: "insider"
-        containment_actions:
-          - "Immediately disable insider's accounts and credentials"
-          - "Revoke physical access badges"
-          - "Collect devices (laptop, phone, USB drives)"
-          - "Preserve evidence per legal hold procedures"
-          - "Notify HR and legal teams immediately"
-          - "Document all actions taken for legal proceedings"
+    checklist:
+      - id: "cont_001"
+        step: "Block exfiltration destinations"
+        description: "Block identified destination IPs/domains at firewall"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 10
+        parallel_group: "network_controls"
+        dependencies: []
+        conditions:
+          triggers_when:
+            exfiltration_confirmed: true
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "blocked_destinations"
+            prompt: "List of blocked IPs/domains"
+          - type: "boolean"
+            name: "blocking_confirmed"
+            prompt: "Blocking rules confirmed active?"
+
+      - id: "cont_002"
+        step: "Disable compromised accounts"
+        description: "Lock accounts involved in breach"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 5
+        parallel_group: "network_controls"
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "disabled_accounts"
+            prompt: "List of disabled accounts"
+
+      - id: "cont_003"
+        step: "Revoke API keys and access tokens"
+        description: "Invalidate potentially compromised credentials"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 15
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "api_keys_revoked"
+            prompt: "API keys and tokens revoked?"
+
+      - id: "cont_004"
+        step: "Enhance DLP rules"
+        description: "Enable strict DLP policies to prevent further exfiltration"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "dlp_enhancements"
+            prompt: "Description of DLP rule enhancements"
+
+      - id: "cont_005"
+        step: "Disable external email forwarding"
+        description: "Block external forwarding organization-wide temporarily"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 10
+        parallel_group: "email_controls"
+        dependencies: []
+        conditions:
+          triggers_when:
+            data_emailed_externally: true
+        evidence_required:
+          - type: "boolean"
+            name: "external_forwarding_disabled"
+            prompt: "External email forwarding disabled?"
+
+      - id: "cont_006"
+        step: "Restrict cloud storage sync"
+        description: "Block personal cloud storage sync services"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 10
+        parallel_group: "email_controls"
+        dependencies: []
+        conditions:
+          triggers_when:
+            cloud_sync_detected: true
+        evidence_required:
+          - type: "boolean"
+            name: "cloud_sync_blocked"
+            prompt: "Cloud storage sync blocked?"
+
+      - id: "cont_007"
+        step: "Isolate affected database servers"
+        description: "Network isolate compromised databases"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 15
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            breach_method: "database_compromise"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "databases_isolated"
+            prompt: "Affected databases isolated?"
+
+      - id: "cont_008"
+        step: "Change database credentials"
+        description: "Reset all database passwords and connection strings"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: ["cont_007"]
+        conditions:
+          triggers_when:
+            breach_method: "database_compromise"
+        evidence_required:
+          - type: "boolean"
+            name: "database_credentials_changed"
+            prompt: "Database credentials changed?"
+
+      - id: "cont_009"
+        step: "Handle insider threat containment"
+        description: "Disable insider accounts, revoke access, collect devices"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            breach_source: "insider"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "insider_access_revoked"
+            prompt: "Insider access completely revoked?"
+          - type: "boolean"
+            name: "devices_collected"
+            prompt: "Insider devices collected?"
+          - type: "boolean"
+            name: "hr_notified"
+            prompt: "HR notified of insider threat?"
 
   remediation:
-    description: "Recover from breach and prevent recurrence"
+    description: "Recover from breach and prepare notifications"
+    primary_role: "legal_counsel"
+    supporting_roles: ["privacy_officer", "security_admin", "communications_lead"]
+    handoff_to: "incident_commander"
 
-    standard_steps:
-      - "Patch vulnerabilities that enabled the breach"
-      - "Implement enhanced access controls on sensitive data"
-      - "Deploy or enhance DLP solutions"
-      - "Enable database encryption at rest and in transit"
-      - "Implement file integrity monitoring"
-      - "Enhance logging and monitoring coverage"
-      - "Conduct security awareness training on data handling"
-      - "Review and update data classification policies"
-      - "Implement principle of least privilege access"
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 90
 
-    affected_party_notification:
-      - "Determine breach notification requirements:"
-      - "  - GDPR: 72 hours to supervisory authority"
-      - "  - CCPA: Notice without unreasonable delay"
-      - "  - HIPAA: 60 days to affected individuals"
-      - "  - State breach laws: Varies by state"
-      - "Draft notification letter with required elements"
-      - "Prepare FAQ and support resources"
-      - "Set up dedicated breach response hotline/email"
-      - "Offer credit monitoring services if appropriate"
-      - "Coordinate with PR team for public statement"
+    checklist:
+      - id: "rem_001"
+        step: "Patch breach vulnerabilities"
+        description: "Fix technical vulnerabilities that enabled breach"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 120
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "vulnerabilities_patched"
+            prompt: "List of vulnerabilities patched"
 
-    regulatory_compliance:
-      - "Notify regulatory authorities as required:"
-      - "  - HHS OCR for HIPAA breaches (500+ individuals)"
-      - "  - PCI DSS: Notify payment card brands and acquirer"
-      - "  - SEC: If material impact to publicly traded company"
-      - "  - State attorneys general as required"
-      - "Document all notification timelines and content"
-      - "Prepare for potential regulatory investigation"
-      - "Implement corrective action plan"
+      - id: "rem_002"
+        step: "Implement enhanced access controls"
+        description: "Strengthen access controls on sensitive data"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 60
+        parallel_group: "security_enhancements"
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "access_control_enhancements"
+            prompt: "Description of access control improvements"
+
+      - id: "rem_003"
+        step: "Deploy enhanced DLP solution"
+        description: "Implement or upgrade DLP capabilities"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 90
+        parallel_group: "security_enhancements"
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "dlp_deployed"
+            prompt: "Enhanced DLP deployed?"
+
+      - id: "rem_004"
+        step: "Draft breach notification letter"
+        description: "Create notification letter with all required elements"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 120
+        parallel_group: "notification_prep"
+        dependencies: []
+        conditions:
+          triggers_when:
+            notification_required: true
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "notification_letter_draft"
+            prompt: "Draft notification letter content"
+
+      - id: "rem_005"
+        step: "Prepare FAQ and support resources"
+        description: "Create FAQ for affected individuals"
+        assigned_to: "communications_lead"
+        estimated_time_minutes: 90
+        parallel_group: "notification_prep"
+        dependencies: []
+        conditions:
+          triggers_when:
+            notification_required: true
+        evidence_required:
+          - type: "boolean"
+            name: "faq_prepared"
+            prompt: "FAQ prepared?"
+
+      - id: "rem_006"
+        step: "Set up breach response hotline"
+        description: "Establish dedicated support line for affected parties"
+        assigned_to: "privacy_officer"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            notification_required: true
+        evidence_required:
+          - type: "text"
+            name: "hotline_number"
+            prompt: "Breach response hotline number"
+
+      - id: "rem_007"
+        step: "Arrange credit monitoring services"
+        description: "Contract with credit monitoring vendor if appropriate"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 120
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            data_types: "PII"
+        evidence_required:
+          - type: "boolean"
+            name: "credit_monitoring_arranged"
+            prompt: "Credit monitoring services arranged?"
+          - type: "text"
+            name: "monitoring_provider"
+            prompt: "Credit monitoring provider name"
+            optional: true
+
+      - id: "rem_008"
+        step: "Notify regulatory authorities"
+        description: "Submit required notifications to regulators"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 120
+        parallel_group: null
+        dependencies: ["rem_004"]
+        conditions:
+          triggers_when:
+            notification_required: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "regulators_notified"
+            prompt: "Regulatory authorities notified?"
+          - type: "text"
+            name: "regulators_list"
+            prompt: "List of regulators notified (HHS OCR, supervisory authority, AG, etc.)"
+          - type: "timestamp"
+            name: "regulator_notification_time"
+            prompt: "When were regulators notified?"
+
+      - id: "rem_009"
+        step: "Notify affected individuals"
+        description: "Send breach notifications to affected parties"
+        assigned_to: "privacy_officer"
+        estimated_time_minutes: 180
+        parallel_group: null
+        dependencies: ["rem_008"]
+        conditions:
+          triggers_when:
+            notification_required: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "individuals_notified"
+            prompt: "Affected individuals notified?"
+          - type: "timestamp"
+            name: "individual_notification_time"
+            prompt: "When were individuals notified?"
+          - type: "number"
+            name: "notifications_sent_count"
+            prompt: "Number of notifications sent"
+
+      - id: "rem_010"
+        step: "Coordinate public statement"
+        description: "Work with PR team on public disclosure if needed"
+        assigned_to: "communications_lead"
+        estimated_time_minutes: 90
+        parallel_group: null
+        dependencies: ["rem_009"]
+        conditions:
+          triggers_when:
+            media_attention: true
+        evidence_required:
+          - type: "boolean"
+            name: "public_statement_issued"
+            prompt: "Public statement issued?"
+          - type: "text"
+            name: "statement_content"
+            prompt: "Public statement content"
 
   closure:
     description: "Final documentation and lessons learned"
+    primary_role: "incident_commander"
 
-    required_documentation:
-      - "Timeline of breach from initial access to discovery"
-      - "Data types and volume compromised"
-      - "Number of affected individuals"
-      - "Method of exfiltration and attack vector"
-      - "Containment and remediation actions taken"
-      - "Notifications sent to individuals and regulators"
-      - "Root cause analysis"
-      - "Preventive measures implemented"
+    checklist:
+      - id: "close_001"
+        step: "Create comprehensive breach timeline"
+        description: "Document complete timeline from access to resolution"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 90
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "breach_timeline_complete"
+            prompt: "Complete breach timeline"
 
-    lessons_learned:
-      - "Conduct post-incident review with stakeholders"
-      - "Identify gaps in detection and response"
-      - "Update incident response procedures"
-      - "Enhance monitoring and detection capabilities"
-      - "Review and update data governance policies"
+      - id: "close_002"
+        step: "Document all data compromised"
+        description: "Final accounting of data types and volumes"
+        assigned_to: "privacy_officer"
+        estimated_time_minutes: 60
+        parallel_group: "final_documentation"
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "data_inventory"
+            prompt: "Complete inventory of compromised data"
+
+      - id: "close_003"
+        step: "Document affected individuals count"
+        description: "Final count of affected parties"
+        assigned_to: "privacy_officer"
+        estimated_time_minutes: 30
+        parallel_group: "final_documentation"
+        dependencies: []
+        evidence_required:
+          - type: "number"
+            name: "final_affected_count"
+            prompt: "Final count of affected individuals"
+
+      - id: "close_004"
+        step: "Conduct root cause analysis"
+        description: "Identify root cause and contributing factors"
+        assigned_to: "data_forensics_analyst"
+        estimated_time_minutes: 90
+        parallel_group: null
+        dependencies: ["close_001"]
+        evidence_required:
+          - type: "text"
+            name: "root_cause"
+            prompt: "Root cause analysis"
+
+      - id: "close_005"
+        step: "Document preventive measures"
+        description: "Record all security improvements implemented"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "preventive_measures"
+            prompt: "Preventive measures implemented"
+
+      - id: "close_006"
+        step: "Conduct lessons learned session"
+        description: "Post-incident review with all stakeholders"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 120
+        parallel_group: null
+        dependencies: ["close_004", "close_005"]
+        evidence_required:
+          - type: "text"
+            name: "lessons_learned"
+            prompt: "Key lessons learned and action items"
 
 # Risk Assessment Criteria
 risk_factors:
@@ -178,8 +738,9 @@ risk_factors:
     - data_type_affected: "PHI"
     - data_type_affected: "PII"
     - estimated_records: ">50000"
-    - regulatory_notification_required: "yes"
-    - exfiltration_confirmed: "yes"
+    - notification_required: true
+    - exfiltration_confirmed: true
+    - media_attention: true
 
   high_risk:
     - data_type_affected: "PCI"
@@ -200,56 +761,40 @@ risk_factors:
 # Escalation Criteria
 escalation:
   immediate:
-    - "PHI or PII of 500+ individuals compromised"
-    - "Active data exfiltration ongoing"
-    - "Payment card data (PCI) compromised"
-    - "Trade secrets or proprietary data stolen"
-    - "Regulatory notification threshold met"
-    - "Media attention or public disclosure"
+    criteria:
+      - "PHI or PII of 500+ individuals compromised"
+      - "Active data exfiltration ongoing"
+      - "Payment card data (PCI) compromised"
+      - "Trade secrets or proprietary data stolen"
+      - "Regulatory notification threshold met"
+      - "Media attention or public disclosure"
+    notify_roles:
+      - "incident_commander"
+      - "legal_counsel"
+      - "privacy_officer"
+    additional_roles_required:
+      - "ciso"
+      - "ceo"
+      - "communications_lead"
 
   standard:
-    - "100-500 individuals affected"
-    - "Credentials or internal documents compromised"
-    - "Insider threat suspected"
-    - "Potential for identity theft or fraud"
+    criteria:
+      - "100-500 individuals affected"
+      - "Credentials or internal documents compromised"
+      - "Insider threat suspected"
+      - "Potential for identity theft or fraud"
+    notify_roles:
+      - "incident_commander"
+      - "legal_counsel"
 
   low_priority:
-    - "Data accessed but not exfiltrated"
-    - "<100 individuals affected"
-    - "Non-sensitive data only"
-    - "Quickly contained with no ongoing threat"
-
-# Data Types and Regulatory Requirements
-data_types:
-  PII:
-    description: "Personally Identifiable Information"
-    examples:
-      - "Names, Social Security Numbers, Driver's License"
-      - "Addresses, phone numbers, email addresses"
-      - "Dates of birth, biometric data"
-    regulations:
-      - "GDPR (EU)"
-      - "CCPA (California)"
-      - "State breach notification laws"
-
-  PHI:
-    description: "Protected Health Information"
-    examples:
-      - "Medical records, diagnoses, prescriptions"
-      - "Health insurance information"
-      - "Treatment history"
-    regulations:
-      - "HIPAA (US healthcare)"
-      - "HITECH Act"
-
-  PCI:
-    description: "Payment Card Information"
-    examples:
-      - "Credit/debit card numbers"
-      - "CVV codes, expiration dates"
-      - "Cardholder names"
-    regulations:
-      - "PCI DSS"
+    criteria:
+      - "Data accessed but not exfiltrated"
+      - "<100 individuals affected"
+      - "Non-sensitive data only"
+      - "Quickly contained with no ongoing threat"
+    notify_roles:
+      - "incident_commander"
 
 # Notification Timelines by Regulation
 notification_requirements:

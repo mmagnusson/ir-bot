@@ -1,4 +1,5 @@
 # Unauthorized Access Incident Response Playbook
+# Enhanced with role-based workflows, dependencies, and evidence tracking
 # Based on MITRE ATT&CK T1078 (Valid Accounts), T1068 (Privilege Escalation)
 
 incident_type: unauthorized_access
@@ -14,201 +15,476 @@ mitre_attack:
     - "T1210 - Exploitation of Remote Services"
     - "T1133 - External Remote Services"
 
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads response and coordinates team"
+    required: true
+
+  security_analyst:
+    name: "Security Analyst"
+    description: "Investigates unauthorized access and attack vectors"
+    required: true
+
+  system_admin:
+    name: "System Administrator"
+    description: "System lockdown and access control"
+    required: true
+
+  forensics_analyst:
+    name: "Forensics Analyst"
+    description: "Evidence collection and analysis"
+    required: false
+    escalation_triggers: ["privilege_escalation", "data_accessed"]
+
 phases:
   intake:
     description: "Initial unauthorized access detection"
+    primary_role: "incident_commander"
+    handoff_to: "security_analyst"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      sign_off_required: false
+      checklist_completion_threshold: 100
+
     required_fields:
       - affected_system
       - time_of_detection
       - access_method
 
-    initial_questions:
-      - "What system or resource was accessed without authorization?"
-      - "How was the unauthorized access detected?"
-      - "What method was used to gain access?"
-      - "Is the access currently ongoing?"
-      - "What actions were taken by the unauthorized party?"
-      - "Were credentials compromised or was a vulnerability exploited?"
+    checklist:
+      - id: "intake_001"
+        step: "Confirm unauthorized access"
+        description: "Verify this is unauthorized access"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_reasoning"
+            prompt: "Why classified as unauthorized access?"
+
+      - id: "intake_002"
+        step: "Identify affected system"
+        description: "Document what system was accessed"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        parallel_group: null
+        dependencies: ["intake_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "affected_systems"
+            prompt: "List of affected systems"
+
+      - id: "intake_003"
+        step: "Determine if access is ongoing"
+        description: "Check if unauthorized access is currently active"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 5
+        parallel_group: null
+        dependencies: ["intake_002"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "access_ongoing"
+            prompt: "Is unauthorized access currently ongoing?"
 
   investigation:
     description: "Determine scope and impact of unauthorized access"
+    primary_role: "security_analyst"
+    supporting_roles: ["forensics_analyst", "system_admin"]
+    handoff_to: "incident_commander"
 
-    conditions:
-      access_method_analysis:
-        investigation_steps:
-          - "Review authentication logs for the affected system"
-          - "Identify the source IP address and geolocation"
-          - "Check for use of stolen credentials vs. vulnerability exploit"
-          - "Review VPN or remote access logs if applicable"
-          - "Identify time of first unauthorized access"
-          - "Determine if multi-factor authentication was bypassed"
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 80
 
-      privilege_escalation_check:
-        investigation_steps:
-          - "Check for privilege escalation attempts"
-          - "Review sudo/admin command history"
-          - "Identify if attacker gained elevated privileges"
-          - "Check for exploitation of known vulnerabilities (CVEs)"
-          - "Review system security patches and update status"
+    sla:
+      target_completion_hours: 4
+      escalation_threshold_hours: 6
+      notify_roles: ["incident_commander"]
 
-      lateral_movement:
-        investigation_steps:
-          - "Check for access to other systems from compromised host"
-          - "Review network traffic logs for unusual connections"
-          - "Identify if attacker moved to other systems"
-          - "Check for new accounts created on other systems"
-          - "Review file shares and remote desktop connections"
+    checklist:
+      - id: "inv_001"
+        step: "Review authentication logs"
+        description: "Analyze login records for affected system"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "file"
+            name: "auth_logs"
+            prompt: "Upload authentication logs"
+          - type: "text"
+            name: "suspicious_logins"
+            prompt: "Summary of suspicious login activity"
 
-      data_impact:
-        investigation_steps:
-          - "Identify what data or resources were accessed"
-          - "Check for data exfiltration indicators"
-          - "Review file access logs and modifications"
-          - "Determine if sensitive data was compromised"
-          - "Check database query logs if applicable"
+      - id: "inv_002"
+        step: "Identify source IP and location"
+        description: "Determine origin of unauthorized access"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 15
+        parallel_group: null
+        dependencies: ["inv_001"]
+        evidence_required:
+          - type: "text"
+            name: "source_ip"
+            prompt: "Source IP address"
+          - type: "text"
+            name: "geolocation"
+            prompt: "Geographic location of source"
 
-      persistence_mechanisms:
-        investigation_steps:
-          - "Check for backdoor accounts created"
-          - "Review scheduled tasks and cron jobs"
-          - "Identify any malware or tools left behind"
-          - "Check for SSH keys or authorized_keys modifications"
-          - "Review startup scripts and services"
+      - id: "inv_003"
+        step: "Determine access method"
+        description: "Identify how access was gained (credentials, exploit, etc.)"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: ["inv_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "access_method"
+            prompt: "Access method (stolen credentials, vulnerability exploit, etc.)"
+
+      - id: "inv_004"
+        step: "Check for privilege escalation"
+        description: "Determine if attacker escalated privileges"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 25
+        parallel_group: "impact_assessment"
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "privilege_escalation"
+            prompt: "Was privilege escalation detected?"
+          - type: "text"
+            name: "escalation_details"
+            prompt: "Details of privilege escalation"
+            optional: true
+
+      - id: "inv_005"
+        step: "Review command/action history"
+        description: "Analyze what actions attacker took"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 45
+        parallel_group: "impact_assessment"
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "attacker_actions"
+            prompt: "Summary of actions taken by attacker"
+
+      - id: "inv_006"
+        step: "Check for data access or exfiltration"
+        description: "Determine if data was accessed or stolen"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 40
+        parallel_group: null
+        dependencies: ["inv_005"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "data_accessed"
+            prompt: "Was sensitive data accessed?"
+          - type: "boolean"
+            name: "data_exfiltrated"
+            prompt: "Was data exfiltrated?"
+          - type: "text"
+            name: "data_description"
+            prompt: "Description of data accessed/exfiltrated"
+            optional: true
+
+      - id: "inv_007"
+        step: "Check for persistence mechanisms"
+        description: "Look for backdoors or persistence methods"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 35
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "persistence_found"
+            prompt: "Were persistence mechanisms found?"
+          - type: "text"
+            name: "persistence_details"
+            prompt: "Details of persistence mechanisms"
+            optional: true
 
   containment:
-    description: "Stop unauthorized access and prevent further damage"
+    description: "Block unauthorized access and secure systems"
+    primary_role: "system_admin"
+    supporting_roles: ["security_analyst"]
+    handoff_to: "system_admin"
 
-    conditions:
-      active_unauthorized_access:
-        triggers_when:
-          access_ongoing: "yes"
-        containment_actions:
-          - "Immediately terminate active unauthorized sessions"
-          - "Block source IP addresses at firewall level"
-          - "Disable compromised user accounts"
-          - "Isolate affected systems from network if necessary"
-          - "Enable additional monitoring on affected systems"
-          - "Change passwords for all accounts on affected systems"
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
 
-      credential_based_access:
-        triggers_when:
-          access_method: "stolen credentials"
-        containment_actions:
-          - "Force password reset for compromised accounts"
-          - "Revoke all active sessions for affected users"
-          - "Enable or strengthen multi-factor authentication"
-          - "Review and revoke any API keys or tokens"
-          - "Check for password reuse across other systems"
+    sla:
+      target_completion_hours: 1
+      escalation_threshold_hours: 2
+      notify_roles: ["incident_commander"]
 
-      vulnerability_exploitation:
-        triggers_when:
-          access_method: "vulnerability exploit"
-        containment_actions:
-          - "Apply security patches immediately"
-          - "Implement temporary mitigations if patches unavailable"
-          - "Review other systems for same vulnerability"
-          - "Enable additional security controls (WAF, IPS)"
-          - "Consider taking system offline until patched"
+    checklist:
+      - id: "cont_001"
+        step: "Terminate active unauthorized sessions"
+        description: "Kill active sessions immediately"
+        assigned_to: "system_admin"
+        estimated_time_minutes: 5
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            access_ongoing: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "sessions_terminated"
+            prompt: "Active sessions terminated?"
+          - type: "timestamp"
+            name: "termination_time"
+            prompt: "When were sessions terminated?"
 
-      persistence_detected:
-        triggers_when:
-          persistence_established: "yes"
-        containment_actions:
-          - "Remove backdoor accounts and unauthorized access"
-          - "Delete malicious scheduled tasks and services"
-          - "Remove unauthorized SSH keys"
-          - "Rebuild system from known good backup if heavily compromised"
-          - "Conduct full forensic imaging before cleanup"
+      - id: "cont_002"
+        step: "Change compromised credentials"
+        description: "Reset passwords for affected accounts"
+        assigned_to: "system_admin"
+        estimated_time_minutes: 10
+        parallel_group: "credential_security"
+        dependencies: []
+        conditions:
+          triggers_when:
+            access_method: "stolen_credentials"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "credentials_changed"
+            prompt: "Compromised credentials changed?"
+
+      - id: "cont_003"
+        step: "Revoke API keys and tokens"
+        description: "Invalidate compromised API access"
+        assigned_to: "system_admin"
+        estimated_time_minutes: 10
+        parallel_group: "credential_security"
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "api_keys_revoked"
+            prompt: "API keys/tokens revoked?"
+
+      - id: "cont_004"
+        step: "Block source IP addresses"
+        description: "Firewall block attacking IPs"
+        assigned_to: "system_admin"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "blocked_ips"
+            prompt: "List of blocked IP addresses"
+
+      - id: "cont_005"
+        step: "Patch exploited vulnerability"
+        description: "Apply security patches for exploited weakness"
+        assigned_to: "system_admin"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            access_method: "vulnerability_exploit"
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "vulnerability_patched"
+            prompt: "Vulnerability patched (CVE or description)"
+
+      - id: "cont_006"
+        step: "Remove persistence mechanisms"
+        description: "Delete backdoors and persistence methods"
+        assigned_to: "system_admin"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            persistence_found: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "persistence_removed"
+            prompt: "Persistence mechanisms removed?"
+
+      - id: "cont_007"
+        step: "Enable enhanced monitoring"
+        description: "Increase logging and alerting"
+        assigned_to: "system_admin"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "monitoring_enhancements"
+            prompt: "Description of enhanced monitoring"
 
   remediation:
-    description: "Recover systems and prevent future unauthorized access"
+    description: "Restore security and prevent recurrence"
+    primary_role: "system_admin"
+    supporting_roles: ["security_analyst"]
+    handoff_to: "incident_commander"
 
-    standard_steps:
-      - "Patch all identified vulnerabilities on affected systems"
-      - "Review and update access control policies"
-      - "Implement least privilege access principles"
-      - "Enable and review audit logging for critical systems"
-      - "Strengthen authentication requirements (MFA, strong passwords)"
-      - "Review and update firewall rules"
-      - "Implement network segmentation if not present"
-      - "Update intrusion detection/prevention signatures"
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 90
 
-    system_recovery:
-      - "Restore systems from clean backups if necessary"
-      - "Verify integrity of critical system files"
-      - "Rebuild heavily compromised systems from scratch"
-      - "Restore data from backups after verification"
-      - "Re-apply all security configurations"
-      - "Update all system passwords and credentials"
+    checklist:
+      - id: "rem_001"
+        step: "Verify unauthorized access stopped"
+        description: "Confirm no further unauthorized activity"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "access_stopped"
+            prompt: "Unauthorized access stopped?"
 
-    security_enhancements:
-      - "Implement privileged access management (PAM)"
-      - "Deploy endpoint detection and response (EDR) if not present"
-      - "Enable file integrity monitoring on critical systems"
-      - "Implement just-in-time (JIT) access where possible"
-      - "Deploy jump servers/bastion hosts for remote access"
-      - "Enable detailed logging for authentication events"
-      - "Implement security information and event management (SIEM)"
+      - id: "rem_002"
+        step: "Implement additional access controls"
+        description: "Strengthen authentication and authorization"
+        assigned_to: "system_admin"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "access_control_improvements"
+            prompt: "Access control improvements made"
+
+      - id: "rem_003"
+        step: "Conduct security audit"
+        description: "Review system for other vulnerabilities"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 90
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "audit_findings"
+            prompt: "Security audit findings"
+
+      - id: "rem_004"
+        step: "Update detection rules"
+        description: "Enhance monitoring to detect similar attacks"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "detection_updates"
+            prompt: "Detection rule updates made"
 
   closure:
-    description: "Document incident and improve security posture"
+    description: "Final documentation and lessons learned"
+    primary_role: "incident_commander"
 
-    required_documentation:
-      - "Timeline of unauthorized access events"
-      - "Access method and attack vector used"
-      - "Systems and data affected"
-      - "Actions taken by unauthorized party"
-      - "Containment and remediation actions performed"
-      - "Vulnerabilities exploited or credentials compromised"
-      - "Lessons learned and security improvements"
+    checklist:
+      - id: "close_001"
+        step: "Create incident timeline"
+        description: "Document complete timeline"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete incident timeline"
 
-    program_improvements:
-      - "Conduct vulnerability assessment of similar systems"
-      - "Update access control policies and procedures"
-      - "Enhance monitoring and alerting for unauthorized access"
-      - "Implement additional security controls identified"
-      - "Update incident response playbook based on findings"
+      - id: "close_002"
+        step: "Document attack vector and TTPs"
+        description: "Record how attack occurred"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "attack_vector_ttps"
+            prompt: "Attack vector and TTPs documentation"
 
-# Risk Assessment Criteria
+      - id: "close_003"
+        step: "Recommend security improvements"
+        description: "Suggest preventive measures"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 45
+        parallel_group: null
+        dependencies: ["close_002"]
+        evidence_required:
+          - type: "text"
+            name: "security_recommendations"
+            prompt: "Recommended security improvements"
+
+      - id: "close_004"
+        step: "Conduct lessons learned session"
+        description: "Team debrief and process improvements"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 60
+        parallel_group: null
+        dependencies: ["close_003"]
+        evidence_required:
+          - type: "text"
+            name: "lessons_learned"
+            prompt: "Key lessons learned"
+
 risk_factors:
   critical_risk:
-    - privilege_escalation: "yes"
-    - data_exfiltrated: "yes"
-    - persistence_established: "yes"
-    - multiple_systems_compromised: "yes"
+    - privilege_escalation: true
+    - data_exfiltrated: true
+    - persistence_found: true
+    - admin_account_compromised: true
 
   high_risk:
-    - sensitive_data_accessed: "yes"
-    - admin_privileges_obtained: "yes"
-    - vulnerability_exploitation: "yes"
-    - lateral_movement: "yes"
+    - data_accessed: true
+    - access_method: "vulnerability_exploit"
+    - multiple_systems_affected: true
 
   medium_risk:
-    - unauthorized_access_detected: "yes"
-    - limited_data_accessed: "yes"
-    - single_system_affected: "yes"
+    - access_method: "stolen_credentials"
+    - limited_system_access: true
 
-  low_risk:
-    - access_blocked_immediately: "yes"
-    - no_data_accessed: "yes"
-    - vulnerability_patched: "yes"
-
-# Escalation Criteria
 escalation:
   immediate:
-    - "Admin or root access obtained by unauthorized party"
-    - "Multiple systems compromised"
-    - "Active data exfiltration detected"
-    - "Critical infrastructure or production systems affected"
-    - "Persistence mechanisms established"
+    criteria:
+      - "Privileged account compromised"
+      - "Data exfiltration confirmed"
+      - "Persistence mechanisms found"
+      - "Multiple critical systems affected"
+    notify_roles:
+      - "incident_commander"
+      - "system_admin"
+      - "security_analyst"
+    additional_roles_required:
+      - "ciso"
 
   standard:
-    - "Sensitive data accessed without authorization"
-    - "Vulnerability exploitation confirmed"
-    - "Credentials compromised"
-    - "Lateral movement detected"
-
-  low_priority:
-    - "Unauthorized access attempt blocked"
-    - "No system compromise confirmed"
-    - "Access limited to non-sensitive resources"
+    criteria:
+      - "Standard user account compromised"
+      - "Vulnerability exploitation detected"
+      - "Single system affected"
+    notify_roles:
+      - "incident_commander"
+      - "security_analyst"

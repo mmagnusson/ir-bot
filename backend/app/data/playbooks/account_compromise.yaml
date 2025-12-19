@@ -1,4 +1,5 @@
 # Account Compromise Incident Response Playbook
+# Enhanced with role-based workflows, dependencies, and evidence tracking
 # Based on MITRE ATT&CK T1114 (Email Compromise) and T1110.003 (Password Spraying)
 
 incident_type: account_compromise
@@ -13,170 +14,729 @@ mitre_attack:
     - "T1110.003 - Password Spraying"
     - "T1078 - Valid Accounts"
 
+# Role definitions for this incident type
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads response, makes decisions, coordinates team"
+    required: true
+
+  identity_analyst:
+    name: "Identity & Access Analyst"
+    description: "Authentication log analysis and account security"
+    required: true
+
+  email_admin:
+    name: "Email Administrator"
+    description: "Email security, rules, and mailbox operations"
+    required: true
+
+  security_admin:
+    name: "Security Administrator"
+    description: "Account lockdown and security controls"
+    required: true
+
+  compliance_officer:
+    name: "Compliance Officer"
+    description: "Regulatory requirements and breach notification"
+    required: false
+    escalation_triggers: ["data_exfiltrated", "pii_accessed"]
+
 phases:
   intake:
     description: "Initial triage of compromised account"
+    primary_role: "incident_commander"
+    handoff_to: "identity_analyst"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      sign_off_required: false
+      checklist_completion_threshold: 100
+
     required_fields:
       - affected_user_email
       - unauthorized_access_detected
       - suspicious_activities
       - time_of_detection
 
-    initial_questions:
-      - "What suspicious activities were observed?"
-      - "Are there unauthorized logins from unusual locations?"
-      - "Has the user reported losing access to their account?"
-      - "Are there suspicious email rules or forwards?"
-      - "Was MFA configured on this account?"
+    checklist:
+      - id: "intake_001"
+        step: "Confirm account compromise"
+        description: "Verify this is an account compromise incident"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_reasoning"
+            prompt: "Why is this classified as account compromise?"
+
+      - id: "intake_002"
+        step: "Identify affected account(s)"
+        description: "Document compromised account details"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        parallel_group: null
+        dependencies: ["intake_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "affected_accounts"
+            prompt: "List of affected account email addresses"
+          - type: "text"
+            name: "account_type"
+            prompt: "Account type (standard, admin, service)"
+
+      - id: "intake_003"
+        step: "Document suspicious activities"
+        description: "Capture initial report of suspicious behavior"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: ["intake_002"]
+        evidence_required:
+          - type: "text"
+            name: "suspicious_activities_description"
+            prompt: "Describe suspicious activities observed"
+
+      - id: "intake_004"
+        step: "Check MFA status"
+        description: "Verify if MFA was configured and functioning"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 3
+        parallel_group: "initial_checks"
+        dependencies: ["intake_002"]
+        evidence_required:
+          - type: "boolean"
+            name: "mfa_enabled"
+            prompt: "Was MFA enabled on this account?"
+          - type: "boolean"
+            name: "mfa_bypassed"
+            prompt: "Was MFA bypassed?"
+            optional: true
 
   investigation:
     description: "Determine compromise scope and attacker actions"
+    primary_role: "identity_analyst"
+    supporting_roles: ["email_admin", "security_admin"]
+    handoff_to: "incident_commander"
 
-    conditions:
-      unauthorized_access_confirmed:
-        triggers_when:
-          unauthorized_access_detected: "yes"
-        investigation_steps:
-          - "Review authentication logs for the affected account"
-          - "Identify all login locations (IP addresses and geolocations)"
-          - "Check for impossible travel scenarios"
-          - "Review MFA challenges and responses"
-          - "Identify time range of unauthorized access"
-          - "Check for concurrent sessions from multiple locations"
-          - "Review user agent strings for anomalies"
-          - "Correlate with VPN logs if applicable"
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 80
 
-      email_compromise_indicators:
-        investigation_steps:
-          - "Check for new email forwarding rules"
-          - "Review inbox rules for message deletion or forwarding"
-          - "Inspect sent items for phishing/spam messages"
-          - "Check for unusual email access patterns"
-          - "Review mailbox delegation settings"
-          - "Check for OAuth application consents"
-          - "Review calendar invites sent by the account"
-          - "Check for email exports or bulk downloads"
+    sla:
+      target_completion_hours: 4
+      escalation_threshold_hours: 6
+      notify_roles: ["incident_commander"]
 
-      credential_theft_vector:
-        investigation_steps:
-          - "Determine how credentials were obtained:"
-          - "  - Phishing email clicked by user?"
-          - "  - Password spraying attack?"
-          - "  - Credential stuffing from data breach?"
-          - "  - Malware/keylogger on user's device?"
-          - "  - Insider threat?"
-          - "Review failed authentication attempts before success"
-          - "Check for brute force patterns"
-          - "Analyze password complexity and reuse"
+    checklist:
+      - id: "inv_001"
+        step: "Review authentication logs"
+        description: "Analyze login history for the affected account"
+        assigned_to: "identity_analyst"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "file"
+            name: "auth_logs"
+            prompt: "Upload authentication logs"
+          - type: "text"
+            name: "suspicious_ips"
+            prompt: "List of suspicious IP addresses"
+          - type: "timestamp"
+            name: "first_unauthorized_login"
+            prompt: "Timestamp of first unauthorized login"
 
-      lateral_access_check:
-        investigation_steps:
-          - "Identify other accounts accessed from compromised account"
-          - "Review file access and downloads"
-          - "Check for privilege escalation attempts"
-          - "Review cloud application access (Office 365, Google, etc.)"
-          - "Check for changes to security settings"
-          - "Review admin actions if privileged account"
+      - id: "inv_002"
+        step: "Check for impossible travel"
+        description: "Identify logins from geographically impossible locations"
+        assigned_to: "identity_analyst"
+        estimated_time_minutes: 15
+        parallel_group: null
+        dependencies: ["inv_001"]
+        evidence_required:
+          - type: "boolean"
+            name: "impossible_travel_detected"
+            prompt: "Was impossible travel detected?"
+          - type: "text"
+            name: "impossible_travel_details"
+            prompt: "Details of impossible travel (locations, times)"
+            optional: true
+
+      - id: "inv_003"
+        step: "Review MFA challenges"
+        description: "Check MFA logs for bypass attempts or failures"
+        assigned_to: "identity_analyst"
+        estimated_time_minutes: 10
+        parallel_group: "mfa_analysis"
+        dependencies: []
+        conditions:
+          triggers_when:
+            mfa_enabled: true
+        evidence_required:
+          - type: "text"
+            name: "mfa_challenge_results"
+            prompt: "Summary of MFA challenge results"
+          - type: "boolean"
+            name: "mfa_bypass_technique_identified"
+            prompt: "Was an MFA bypass technique identified?"
+
+      - id: "inv_004"
+        step: "Identify compromise duration"
+        description: "Determine time range of unauthorized access"
+        assigned_to: "identity_analyst"
+        estimated_time_minutes: 10
+        parallel_group: "mfa_analysis"
+        dependencies: ["inv_001"]
+        critical: true
+        evidence_required:
+          - type: "timestamp"
+            name: "compromise_start"
+            prompt: "When did unauthorized access begin?"
+          - type: "timestamp"
+            name: "compromise_end"
+            prompt: "When did unauthorized access end?"
+            optional: true
+
+      - id: "inv_005"
+        step: "Check for email forwarding rules"
+        description: "Look for malicious email forwarding or inbox rules"
+        assigned_to: "email_admin"
+        estimated_time_minutes: 15
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "forwarding_rules_found"
+            prompt: "Were suspicious forwarding rules found?"
+          - type: "text"
+            name: "forwarding_destinations"
+            prompt: "List forwarding destinations"
+            optional: true
+
+      - id: "inv_006"
+        step: "Review sent items for spam/phishing"
+        description: "Check if account was used to send malicious emails"
+        assigned_to: "email_admin"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "malicious_emails_sent"
+            prompt: "Were malicious emails sent from this account?"
+          - type: "number"
+            name: "malicious_email_count"
+            prompt: "Number of malicious emails sent"
+            optional: true
+
+      - id: "inv_007"
+        step: "Check OAuth application consents"
+        description: "Review suspicious third-party app permissions"
+        assigned_to: "identity_analyst"
+        estimated_time_minutes: 15
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "boolean"
+            name: "suspicious_oauth_apps"
+            prompt: "Were suspicious OAuth apps found?"
+          - type: "text"
+            name: "oauth_app_list"
+            prompt: "List of suspicious OAuth apps"
+            optional: true
+
+      - id: "inv_008"
+        step: "Determine credential theft vector"
+        description: "Identify how credentials were compromised"
+        assigned_to: "identity_analyst"
+        estimated_time_minutes: 25
+        parallel_group: null
+        dependencies: ["inv_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "compromise_vector"
+            prompt: "Compromise vector (phishing, password spray, credential stuffing, malware, etc.)"
+          - type: "text"
+            name: "vector_evidence"
+            prompt: "Evidence supporting the identified vector"
+
+      - id: "inv_009"
+        step: "Check for data access and exfiltration"
+        description: "Review what files/emails were accessed or downloaded"
+        assigned_to: "identity_analyst"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "data_accessed"
+            prompt: "Was sensitive data accessed?"
+          - type: "boolean"
+            name: "data_exfiltrated"
+            prompt: "Was data exfiltrated?"
+          - type: "text"
+            name: "data_description"
+            prompt: "Description of data accessed/exfiltrated"
+            optional: true
+
+      - id: "inv_010"
+        step: "Check for privilege escalation"
+        description: "Determine if attacker attempted to gain higher privileges"
+        assigned_to: "identity_analyst"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            account_type: "admin"
+        evidence_required:
+          - type: "boolean"
+            name: "privilege_escalation_attempted"
+            prompt: "Was privilege escalation attempted?"
+          - type: "text"
+            name: "escalation_details"
+            prompt: "Details of escalation attempts"
+            optional: true
+
+      - id: "inv_011"
+        step: "Identify other affected accounts"
+        description: "Check if this is part of a wider campaign"
+        assigned_to: "identity_analyst"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: ["inv_008"]
+        evidence_required:
+          - type: "boolean"
+            name: "multiple_accounts_compromised"
+            prompt: "Were multiple accounts compromised?"
+          - type: "number"
+            name: "total_accounts_affected"
+            prompt: "Total number of accounts affected"
+            optional: true
 
   containment:
     description: "Lock down compromised account and prevent further damage"
+    primary_role: "security_admin"
+    supporting_roles: ["email_admin", "identity_analyst"]
+    handoff_to: "security_admin"
 
-    conditions:
-      active_compromise:
-        triggers_when:
-          unauthorized_access_detected: "yes"
-        containment_actions:
-          - "Force immediate password reset for affected account"
-          - "Revoke all active sessions immediately"
-          - "Disable account temporarily if active unauthorized access"
-          - "Remove suspicious email forwarding rules"
-          - "Delete malicious inbox rules"
-          - "Revoke suspicious OAuth application consents"
-          - "Reset MFA tokens/devices"
-          - "Block source IPs if identified as malicious"
-          - "Enable conditional access policies"
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
 
-      privilege_account_compromise:
-        triggers_when:
-          account_type: "admin"
-        containment_actions:
-          - "Immediately disable admin account"
-          - "Reset all privileged account passwords"
-          - "Review and revoke admin role assignments"
-          - "Check for creation of backdoor accounts"
-          - "Audit changes made during compromise window"
-          - "Notify security team and management immediately"
+    sla:
+      target_completion_hours: 1
+      escalation_threshold_hours: 2
+      notify_roles: ["incident_commander"]
 
-      multi_account_compromise:
-        containment_actions:
-          - "Force password reset organization-wide if password spraying"
-          - "Implement temporary conditional access restrictions"
-          - "Enable enhanced monitoring on all accounts"
-          - "Review and lockdown service accounts"
+    checklist:
+      - id: "cont_001"
+        step: "Force immediate password reset"
+        description: "Reset password for compromised account"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 5
+        parallel_group: "account_lockdown"
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "password_reset"
+            prompt: "Password reset completed?"
+          - type: "timestamp"
+            name: "password_reset_time"
+            prompt: "When was password reset?"
+
+      - id: "cont_002"
+        step: "Revoke all active sessions"
+        description: "Terminate all active sessions for the account"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 3
+        parallel_group: "account_lockdown"
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "sessions_revoked"
+            prompt: "All sessions revoked?"
+          - type: "number"
+            name: "sessions_revoked_count"
+            prompt: "Number of sessions terminated"
+
+      - id: "cont_003"
+        step: "Disable account if actively compromised"
+        description: "Temporarily disable account if unauthorized access ongoing"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 2
+        parallel_group: "account_lockdown"
+        dependencies: []
+        conditions:
+          triggers_when:
+            unauthorized_access_detected: "yes"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "account_disabled"
+            prompt: "Account temporarily disabled?"
+
+      - id: "cont_004"
+        step: "Remove email forwarding rules"
+        description: "Delete suspicious forwarding and inbox rules"
+        assigned_to: "email_admin"
+        estimated_time_minutes: 10
+        parallel_group: "email_cleanup"
+        dependencies: []
+        conditions:
+          triggers_when:
+            forwarding_rules_found: true
+        evidence_required:
+          - type: "boolean"
+            name: "forwarding_rules_removed"
+            prompt: "Forwarding rules removed?"
+          - type: "number"
+            name: "rules_removed_count"
+            prompt: "Number of rules removed"
+
+      - id: "cont_005"
+        step: "Revoke suspicious OAuth applications"
+        description: "Remove unauthorized third-party app permissions"
+        assigned_to: "identity_analyst"
+        estimated_time_minutes: 10
+        parallel_group: "email_cleanup"
+        dependencies: []
+        conditions:
+          triggers_when:
+            suspicious_oauth_apps: true
+        evidence_required:
+          - type: "boolean"
+            name: "oauth_apps_revoked"
+            prompt: "OAuth apps revoked?"
+          - type: "text"
+            name: "revoked_apps_list"
+            prompt: "List of revoked apps"
+
+      - id: "cont_006"
+        step: "Reset MFA tokens/devices"
+        description: "Re-register MFA from trusted device"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: ["cont_001"]
+        evidence_required:
+          - type: "boolean"
+            name: "mfa_reset"
+            prompt: "MFA tokens reset?"
+
+      - id: "cont_007"
+        step: "Block source IPs"
+        description: "Block malicious IP addresses at firewall/conditional access"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "blocked_ips"
+            prompt: "List of blocked IP addresses"
+          - type: "boolean"
+            name: "ip_blocking_confirmed"
+            prompt: "IP blocking confirmed?"
+
+      - id: "cont_008"
+        step: "Immediately disable admin account"
+        description: "Critical - disable compromised privileged account"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 2
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            account_type: "admin"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "admin_account_disabled"
+            prompt: "Admin account disabled?"
+          - type: "timestamp"
+            name: "admin_disable_time"
+            prompt: "When was admin account disabled?"
+
+      - id: "cont_009"
+        step: "Review admin actions during compromise"
+        description: "Audit all admin actions taken during compromise window"
+        assigned_to: "identity_analyst"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: ["cont_008"]
+        conditions:
+          triggers_when:
+            account_type: "admin"
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "admin_actions_log"
+            prompt: "Summary of admin actions during compromise"
+
+      - id: "cont_010"
+        step: "Check for backdoor accounts"
+        description: "Look for accounts created during compromise"
+        assigned_to: "identity_analyst"
+        estimated_time_minutes: 20
+        parallel_group: null
+        dependencies: ["cont_009"]
+        conditions:
+          triggers_when:
+            account_type: "admin"
+        evidence_required:
+          - type: "boolean"
+            name: "backdoor_accounts_found"
+            prompt: "Were backdoor accounts found?"
+          - type: "text"
+            name: "backdoor_account_list"
+            prompt: "List of backdoor accounts"
+            optional: true
 
   remediation:
     description: "Recover account and prevent recurrence"
+    primary_role: "security_admin"
+    supporting_roles: ["email_admin", "compliance_officer"]
+    handoff_to: "incident_commander"
 
-    standard_steps:
-      - "User must reset password from trusted device"
-      - "Enforce strong password requirements"
-      - "Enable MFA if not already active (MANDATORY)"
-      - "Re-register MFA devices from scratch"
-      - "Remove all email rules created during compromise"
-      - "Review and remove suspicious mailbox delegates"
-      - "Check for emails sent during compromise (recall if possible)"
-      - "Scan user's devices for malware"
-      - "Review data accessed and notify affected parties if needed"
-      - "Update security questions/account recovery options"
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 90
 
-    user_communication:
-      - "Notify user of compromise and remediation steps"
-      - "Provide guidance on recognizing phishing"
-      - "Instruct on secure password practices"
-      - "Explain importance of MFA"
-      - "Request reporting of any further suspicious activity"
+    checklist:
+      - id: "rem_001"
+        step: "User resets password from trusted device"
+        description: "Ensure user resets password securely"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "user_password_reset_verified"
+            prompt: "User password reset verified?"
 
-    organizational_actions:
-      - "Review and strengthen authentication policies"
-      - "Deploy advanced threat protection for email"
-      - "Implement user behavior analytics (UBA)"
-      - "Enhance phishing awareness training"
-      - "Consider implementing FIDO2/WebAuthn"
+      - id: "rem_002"
+        step: "Enable MFA if not already active"
+        description: "Mandatory MFA enrollment for compromised account"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 15
+        parallel_group: "mfa_setup"
+        dependencies: []
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "mfa_enabled_verified"
+            prompt: "MFA enabled and verified?"
+          - type: "text"
+            name: "mfa_method"
+            prompt: "MFA method configured (authenticator app, FIDO2, etc.)"
+
+      - id: "rem_003"
+        step: "Re-register MFA devices from scratch"
+        description: "Remove old MFA registrations and re-enroll"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 10
+        parallel_group: "mfa_setup"
+        dependencies: []
+        conditions:
+          triggers_when:
+            mfa_enabled: true
+        evidence_required:
+          - type: "boolean"
+            name: "mfa_devices_reregistered"
+            prompt: "MFA devices re-registered?"
+
+      - id: "rem_004"
+        step: "Scan user devices for malware"
+        description: "Check if user's devices were infected"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            compromise_vector: "malware"
+        evidence_required:
+          - type: "boolean"
+            name: "device_scan_completed"
+            prompt: "Device malware scan completed?"
+          - type: "boolean"
+            name: "malware_found"
+            prompt: "Was malware found on device?"
+
+      - id: "rem_005"
+        step: "Remove backdoor accounts"
+        description: "Delete any accounts created by attacker"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            backdoor_accounts_found: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "backdoor_accounts_removed"
+            prompt: "Backdoor accounts removed?"
+
+      - id: "rem_006"
+        step: "Notify user of compromise"
+        description: "Inform user and provide security guidance"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 20
+        parallel_group: "communication"
+        dependencies: ["rem_001"]
+        evidence_required:
+          - type: "boolean"
+            name: "user_notified"
+            prompt: "User notified of compromise?"
+          - type: "timestamp"
+            name: "user_notification_time"
+            prompt: "When was user notified?"
+
+      - id: "rem_007"
+        step: "Provide phishing awareness guidance"
+        description: "Educate user on phishing recognition"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 15
+        parallel_group: "communication"
+        dependencies: []
+        conditions:
+          triggers_when:
+            compromise_vector: "phishing"
+        evidence_required:
+          - type: "boolean"
+            name: "phishing_training_provided"
+            prompt: "Phishing awareness training provided?"
+
+      - id: "rem_008"
+        step: "Assess regulatory notification requirements"
+        description: "Determine if breach notification required"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        conditions:
+          triggers_when:
+            data_exfiltrated: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "breach_notification_required"
+            prompt: "Is breach notification required?"
+          - type: "text"
+            name: "notification_requirements"
+            prompt: "Applicable regulations (GDPR, CCPA, HIPAA, etc.)"
+            optional: true
+
+      - id: "rem_009"
+        step: "Update security questions and recovery options"
+        description: "Reset account recovery mechanisms"
+        assigned_to: "security_admin"
+        estimated_time_minutes: 10
+        parallel_group: null
+        dependencies: ["rem_001"]
+        evidence_required:
+          - type: "boolean"
+            name: "recovery_options_updated"
+            prompt: "Security questions/recovery options updated?"
 
   closure:
     description: "Final documentation and prevention"
+    primary_role: "incident_commander"
 
-    required_documentation:
-      - "Account(s) compromised and timeline"
-      - "Method of compromise (phishing, spray, etc.)"
-      - "Unauthorized access locations and times"
-      - "Actions taken by attacker"
-      - "Data accessed or exfiltrated"
-      - "Remediation steps completed"
-      - "User notification and training provided"
+    checklist:
+      - id: "close_001"
+        step: "Create incident timeline"
+        description: "Document chronological sequence of events"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete incident timeline"
 
-    compliance_requirements:
-      - "Determine if data breach notification required"
-      - "Document for compliance audits (SOX, HIPAA, etc.)"
-      - "Report to appropriate authorities if PII compromised"
+      - id: "close_002"
+        step: "Document compromise vector and IOCs"
+        description: "Record how compromise occurred and indicators"
+        assigned_to: "identity_analyst"
+        estimated_time_minutes: 20
+        parallel_group: "documentation"
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "iocs_list"
+            prompt: "List of IOCs (IPs, user agents, OAuth apps, etc.)"
+
+      - id: "close_003"
+        step: "Document attacker actions"
+        description: "Record all actions taken by attacker"
+        assigned_to: "identity_analyst"
+        estimated_time_minutes: 20
+        parallel_group: "documentation"
+        dependencies: []
+        evidence_required:
+          - type: "text"
+            name: "attacker_actions"
+            prompt: "Summary of attacker actions"
+
+      - id: "close_004"
+        step: "Assess data impact"
+        description: "Document what data was accessed or exfiltrated"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: ["close_001", "close_002", "close_003"]
+        evidence_required:
+          - type: "text"
+            name: "data_impact_assessment"
+            prompt: "Assessment of data accessed/exfiltrated"
+
+      - id: "close_005"
+        step: "Recommend authentication improvements"
+        description: "Suggest organizational authentication enhancements"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        parallel_group: null
+        dependencies: ["close_004"]
+        evidence_required:
+          - type: "text"
+            name: "authentication_recommendations"
+            prompt: "Recommendations (enforce MFA, FIDO2, conditional access, etc.)"
 
 # Risk Assessment Criteria
 risk_factors:
   critical_risk:
     - account_type: "admin"
-    - data_exfiltrated: "yes"
-    - mfa_bypassed: "yes"
-    - multiple_accounts_compromised: "yes"
+    - data_exfiltrated: true
+    - mfa_bypassed: true
+    - multiple_accounts_compromised: true
+    - backdoor_accounts_found: true
 
   high_risk:
     - unauthorized_access_detected: "yes"
-    - mfa_enabled: "no"
+    - mfa_enabled: false
     - sensitive_data_accessed: "yes"
-    - privilege_escalation_attempted: "yes"
+    - privilege_escalation_attempted: true
 
   medium_risk:
     - unauthorized_access_detected: "yes"
-    - mfa_enabled: "yes"
+    - mfa_enabled: true
     - limited_data_accessed: "yes"
 
   low_risk:
@@ -186,22 +746,36 @@ risk_factors:
 # Escalation Criteria
 escalation:
   immediate:
-    - "Admin/privileged account compromised"
-    - "Data exfiltration confirmed"
-    - "MFA bypass technique identified"
-    - "Active unauthorized access ongoing"
-    - "Regulatory notification threshold met"
+    criteria:
+      - "Admin/privileged account compromised"
+      - "Data exfiltration confirmed"
+      - "MFA bypass technique identified"
+      - "Active unauthorized access ongoing"
+      - "Regulatory notification threshold met"
+    notify_roles:
+      - "incident_commander"
+      - "security_admin"
+    additional_roles_required:
+      - "ciso"
+      - "compliance_officer"
 
   standard:
-    - "Multiple user accounts affected"
-    - "Cloud admin console accessed"
-    - "Sensitive data potentially accessed"
-    - "Email used for further attacks"
+    criteria:
+      - "Multiple user accounts affected"
+      - "Cloud admin console accessed"
+      - "Sensitive data potentially accessed"
+      - "Email used for further attacks"
+    notify_roles:
+      - "incident_commander"
+      - "identity_analyst"
 
   low_priority:
-    - "Single account, quickly contained"
-    - "No data access detected"
-    - "MFA blocked unauthorized access"
+    criteria:
+      - "Single account, quickly contained"
+      - "No data access detected"
+      - "MFA blocked unauthorized access"
+    notify_roles:
+      - "incident_commander"
 
 # Password Spraying Detection
 password_spraying_indicators:
