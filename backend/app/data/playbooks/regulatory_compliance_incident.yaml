@@ -1,0 +1,564 @@
+# Regulatory Compliance Incident Response Playbook
+# Handles GDPR, HIPAA, PCI-DSS, SOX, CCPA, and other regulatory compliance violations
+# Covers breach notification, regulatory reporting, attorney-client privilege, and compliance gap remediation
+
+incident_type: regulatory_compliance_incident
+
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads compliance incident response"
+    required: true
+
+  data_protection_officer:
+    name: "Data Protection Officer"
+    description: "Manages data privacy and protection compliance"
+    required: true
+
+  legal_counsel:
+    name: "Legal Counsel"
+    description: "Provides legal guidance and manages attorney-client privilege"
+    required: true
+
+  compliance_officer:
+    name: "Compliance Officer"
+    description: "Coordinates regulatory compliance and reporting"
+    required: true
+
+  security_analyst:
+    name: "Security Analyst"
+    description: "Investigates technical aspects of the breach"
+    required: true
+
+  communications_lead:
+    name: "Communications Lead"
+    description: "Manages external communications and notifications"
+    required: false
+
+phases:
+  intake:
+    description: "Initial compliance incident assessment"
+    primary_role: "incident_commander"
+    handoff_to: "data_protection_officer"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      checklist_completion_threshold: 100
+
+    required_fields:
+      - regulation_type
+      - affected_data_type
+      - affected_records_count
+      - time_of_detection
+
+    checklist:
+      - id: "intake_001"
+        step: "Verify compliance incident classification"
+        description: "Confirm regulatory compliance violation occurred"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_rationale"
+            prompt: "Evidence of compliance violation"
+
+      - id: "intake_002"
+        step: "Identify applicable regulations"
+        description: "Determine which regulations apply to this incident"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "applicable_regulations"
+            prompt: "List all applicable regulations (GDPR, HIPAA, PCI-DSS, SOX, CCPA, etc.)"
+
+      - id: "intake_003"
+        step: "Classify affected data type"
+        description: "Determine type of protected data involved"
+        assigned_to: "data_protection_officer"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "data_classification"
+            prompt: "Data type (PII, PHI, payment card data, financial records, etc.)"
+
+      - id: "intake_004"
+        step: "Quantify affected records"
+        description: "Estimate number of records/individuals affected"
+        assigned_to: "data_protection_officer"
+        estimated_time_minutes: 20
+        critical: true
+        evidence_required:
+          - type: "number"
+            name: "estimated_affected_count"
+            prompt: "Estimated number of affected records/individuals"
+
+      - id: "intake_005"
+        step: "Engage legal counsel immediately"
+        description: "Establish attorney-client privilege protection"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "legal_counsel_engaged"
+            prompt: "Legal counsel engaged?"
+          - type: "text"
+            name: "legal_counsel_name"
+            prompt: "Legal counsel contact information"
+
+  investigation:
+    description: "Analyze compliance violation and regulatory requirements"
+    primary_role: "data_protection_officer"
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    sla:
+      target_completion_hours: 24
+      escalation_threshold_hours: 36
+
+    checklist:
+      - id: "inv_001"
+        step: "Determine breach notification requirements"
+        description: "Identify which regulatory authorities must be notified"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 45
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "regulatory_notification_required"
+            prompt: "Is regulatory authority notification required?"
+          - type: "text"
+            name: "regulatory_authorities"
+            prompt: "List of authorities to notify (e.g., ICO, HHS OCR, state AGs)"
+            optional: true
+
+      - id: "inv_002"
+        step: "Calculate notification deadlines"
+        description: "Determine timeline for regulatory and individual notifications"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 30
+        critical: true
+        evidence_required:
+          - type: "timestamp"
+            name: "regulatory_notification_deadline"
+            prompt: "Deadline for regulatory notification"
+          - type: "timestamp"
+            name: "individual_notification_deadline"
+            prompt: "Deadline for affected individual notification"
+            optional: true
+
+      - id: "inv_003"
+        step: "Assess breach risk level"
+        description: "Evaluate likelihood and severity of harm to individuals"
+        assigned_to: "data_protection_officer"
+        estimated_time_minutes: 40
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "risk_assessment"
+            prompt: "Risk level (high/low) and justification"
+
+      - id: "inv_004"
+        step: "Check data encryption status"
+        description: "Determine if affected data was encrypted at rest/in transit"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 30
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "data_encrypted"
+            prompt: "Was affected data encrypted?"
+          - type: "text"
+            name: "encryption_details"
+            prompt: "Encryption methods and key management"
+            optional: true
+
+      - id: "inv_005"
+        step: "Review third-party involvement"
+        description: "Identify vendors/processors with access to affected data"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 35
+        evidence_required:
+          - type: "boolean"
+            name: "third_party_processors_involved"
+            prompt: "Were third-party processors involved?"
+          - type: "text"
+            name: "third_party_list"
+            prompt: "List of third-party processors/vendors"
+            optional: true
+
+      - id: "inv_006"
+        step: "Analyze compliance gap"
+        description: "Identify specific policy or control failures"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 50
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "compliance_gap_analysis"
+            prompt: "Specific compliance failures identified"
+
+      - id: "inv_007"
+        step: "Review audit logs and access records"
+        description: "Document who accessed data and when"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "boolean"
+            name: "audit_logs_reviewed"
+            prompt: "Audit logs reviewed?"
+          - type: "text"
+            name: "access_summary"
+            prompt: "Summary of unauthorized access"
+
+      - id: "inv_008"
+        step: "Assess potential fines and penalties"
+        description: "Estimate regulatory penalties and financial exposure"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "penalty_assessment"
+            prompt: "Estimated fines and penalty range"
+
+  containment:
+    description: "Stop data exposure and preserve evidence"
+    primary_role: "incident_commander"
+    supporting_roles: ["data_protection_officer", "security_analyst"]
+    handoff_to: "compliance_officer"
+
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
+
+    sla:
+      target_completion_hours: 4
+      escalation_threshold_hours: 8
+
+    checklist:
+      - id: "cont_001"
+        step: "Isolate affected systems"
+        description: "Prevent further unauthorized data access"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 30
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "systems_isolated"
+            prompt: "Affected systems isolated?"
+
+      - id: "cont_002"
+        step: "Preserve evidence under legal hold"
+        description: "Implement litigation hold procedures"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 45
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "legal_hold_implemented"
+            prompt: "Legal hold implemented?"
+          - type: "text"
+            name: "evidence_preserved"
+            prompt: "List of evidence preserved"
+
+      - id: "cont_003"
+        step: "Disable unauthorized access vectors"
+        description: "Close security gaps exploited in breach"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 40
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "access_vectors_disabled"
+            prompt: "Unauthorized access vectors disabled?"
+
+      - id: "cont_004"
+        step: "Revoke compromised credentials"
+        description: "Reset passwords and revoke access tokens"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "credentials_revoked"
+            prompt: "Compromised credentials revoked?"
+
+      - id: "cont_005"
+        step: "Notify cyber insurance carrier"
+        description: "Report incident to insurance provider"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 20
+        evidence_required:
+          - type: "boolean"
+            name: "insurance_notified"
+            prompt: "Cyber insurance carrier notified?"
+
+      - id: "cont_006"
+        step: "Document incident timeline"
+        description: "Create detailed chronology for regulatory reporting"
+        assigned_to: "data_protection_officer"
+        estimated_time_minutes: 60
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "incident_chronology"
+            prompt: "Detailed incident timeline"
+
+  remediation:
+    description: "Regulatory reporting and compliance remediation"
+    primary_role: "compliance_officer"
+    supporting_roles: ["legal_counsel", "data_protection_officer", "communications_lead"]
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 90
+
+    checklist:
+      - id: "rem_001"
+        step: "Submit regulatory breach notification"
+        description: "File required notifications with regulatory authorities"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 120
+        conditions:
+          triggers_when:
+            regulatory_notification_required: "yes"
+        critical: true
+        evidence_required:
+          - type: "timestamp"
+            name: "regulatory_notification_submitted"
+            prompt: "Timestamp of regulatory notification submission"
+          - type: "text"
+            name: "notification_confirmation"
+            prompt: "Confirmation numbers or filing receipts"
+
+      - id: "rem_002"
+        step: "Notify affected individuals"
+        description: "Send breach notification letters to affected persons"
+        assigned_to: "communications_lead"
+        estimated_time_minutes: 180
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "individuals_notified"
+            prompt: "Affected individuals notified?"
+          - type: "number"
+            name: "notification_count"
+            prompt: "Number of individuals notified"
+
+      - id: "rem_003"
+        step: "Offer credit monitoring services"
+        description: "Provide identity theft protection if required"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "boolean"
+            name: "credit_monitoring_offered"
+            prompt: "Credit monitoring offered to affected individuals?"
+          - type: "text"
+            name: "credit_monitoring_vendor"
+            prompt: "Credit monitoring service provider"
+            optional: true
+
+      - id: "rem_004"
+        step: "Update privacy policies"
+        description: "Revise privacy notices and policies as needed"
+        assigned_to: "data_protection_officer"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "boolean"
+            name: "privacy_policies_updated"
+            prompt: "Privacy policies updated?"
+
+      - id: "rem_005"
+        step: "Implement technical safeguards"
+        description: "Deploy security controls to prevent recurrence"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 240
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "technical_safeguards"
+            prompt: "Technical safeguards implemented"
+
+      - id: "rem_006"
+        step: "Update administrative controls"
+        description: "Strengthen policies and procedures"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 180
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "administrative_controls"
+            prompt: "Administrative controls updated"
+
+      - id: "rem_007"
+        step: "Conduct staff training"
+        description: "Train employees on compliance requirements"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "boolean"
+            name: "staff_training_completed"
+            prompt: "Compliance training completed?"
+
+      - id: "rem_008"
+        step: "Perform compliance audit"
+        description: "Conduct comprehensive compliance assessment"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 360
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "audit_findings"
+            prompt: "Compliance audit results"
+
+      - id: "rem_009"
+        step: "Update vendor contracts"
+        description: "Revise data processing agreements with third parties"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 180
+        evidence_required:
+          - type: "boolean"
+            name: "vendor_contracts_updated"
+            prompt: "Vendor contracts updated?"
+
+      - id: "rem_010"
+        step: "Implement data minimization"
+        description: "Reduce data collection and retention"
+        assigned_to: "data_protection_officer"
+        estimated_time_minutes: 240
+        evidence_required:
+          - type: "text"
+            name: "data_minimization_measures"
+            prompt: "Data minimization measures implemented"
+
+      - id: "rem_011"
+        step: "Establish incident response plan"
+        description: "Create or update breach response procedures"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 180
+        evidence_required:
+          - type: "boolean"
+            name: "incident_response_plan_updated"
+            prompt: "Incident response plan updated?"
+
+  closure:
+    description: "Final documentation and regulatory follow-up"
+    primary_role: "incident_commander"
+
+    checklist:
+      - id: "close_001"
+        step: "Document compliance incident comprehensively"
+        description: "Create detailed report for regulators and stakeholders"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 180
+        evidence_required:
+          - type: "text"
+            name: "comprehensive_report"
+            prompt: "Complete incident documentation"
+
+      - id: "close_002"
+        step: "Create remediation action plan"
+        description: "Document all corrective actions and timelines"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "text"
+            name: "remediation_plan"
+            prompt: "Corrective action plan"
+
+      - id: "close_003"
+        step: "Respond to regulatory inquiries"
+        description: "Address follow-up questions from authorities"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 240
+        evidence_required:
+          - type: "boolean"
+            name: "regulatory_inquiries_addressed"
+            prompt: "All regulatory inquiries addressed?"
+
+      - id: "close_004"
+        step: "Update compliance documentation"
+        description: "Revise compliance program documentation"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 180
+        evidence_required:
+          - type: "text"
+            name: "compliance_documentation_updates"
+            prompt: "Compliance documentation updates"
+
+      - id: "close_005"
+        step: "Conduct lessons learned session"
+        description: "Review incident response and identify improvements"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "lessons_learned"
+            prompt: "Key lessons learned"
+
+      - id: "close_006"
+        step: "Schedule compliance reassessment"
+        description: "Plan follow-up compliance audit"
+        assigned_to: "compliance_officer"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "timestamp"
+            name: "reassessment_scheduled"
+            prompt: "Date of scheduled compliance reassessment"
+
+risk_factors:
+  critical_risk:
+    - affected_records_count: ">50000"
+    - data_encrypted: "no"
+    - regulatory_notification_required: "yes"
+    - regulation_type: "HIPAA"
+
+  high_risk:
+    - affected_records_count: "10000-50000"
+    - third_party_processors_involved: "yes"
+    - regulation_type: "GDPR"
+    - regulation_type: "PCI-DSS"
+
+  medium_risk:
+    - affected_records_count: "1000-10000"
+    - data_encrypted: "yes"
+
+  low_risk:
+    - affected_records_count: "<1000"
+    - risk_assessment: "low"
+
+escalation:
+  immediate:
+    criteria:
+      - "Over 50,000 individuals affected"
+      - "Unencrypted PHI exposed (HIPAA)"
+      - "Payment card data breach (PCI-DSS)"
+      - "Regulatory notification deadline within 72 hours"
+      - "High risk of identity theft or fraud"
+    notify_roles:
+      - "incident_commander"
+      - "legal_counsel"
+      - "data_protection_officer"
+      - "compliance_officer"
+    additional_roles_required:
+      - "ceo"
+      - "ciso"
+      - "board_of_directors"
+
+  standard:
+    criteria:
+      - "Under 10,000 individuals affected"
+      - "Encrypted data exposed"
+      - "No immediate regulatory notification required"
+      - "Low risk assessment"
+    notify_roles:
+      - "incident_commander"
+      - "compliance_officer"

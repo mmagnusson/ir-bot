@@ -1,0 +1,609 @@
+# Cloud Account Compromise Incident Response Playbook
+# Handles AWS, Azure, GCP, and other cloud platform account compromises
+
+incident_type: cloud_account_compromise
+
+# Role definitions for this incident type
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads response and coordinates cloud incident"
+    required: true
+
+  cloud_security_analyst:
+    name: "Cloud Security Analyst"
+    description: "Investigates cloud logs and implements controls"
+    required: true
+
+  cloud_architect:
+    name: "Cloud Solutions Architect"
+    description: "Assesses infrastructure changes and recovery"
+    required: true
+
+  iam_specialist:
+    name: "IAM Specialist"
+    description: "Manages identity and access control remediation"
+    required: true
+
+  finops_analyst:
+    name: "FinOps Analyst"
+    description: "Monitors unexpected cloud costs and resource usage"
+    required: false
+    escalation_triggers: ["cryptomining_detected", "unexpected_costs"]
+
+  compliance_officer:
+    name: "Compliance Officer"
+    description: "Assesses regulatory implications of cloud breach"
+    required: false
+    escalation_triggers: ["data_accessed"]
+
+phases:
+  intake:
+    description: "Initial cloud account compromise assessment"
+    primary_role: "incident_commander"
+    handoff_to: "cloud_security_analyst"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      checklist_completion_threshold: 100
+
+    required_fields:
+      - cloud_provider
+      - compromised_account_id
+      - account_type
+      - time_of_detection
+
+    checklist:
+      - id: "intake_001"
+        step: "Verify cloud account compromise classification"
+        description: "Confirm unauthorized cloud account access"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_rationale"
+            prompt: "Why is this classified as cloud account compromise?"
+
+      - id: "intake_002"
+        step: "Identify cloud provider and account"
+        description: "Determine which cloud platform and account is compromised"
+        assigned_to: "cloud_security_analyst"
+        estimated_time_minutes: 10
+        dependencies: ["intake_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "cloud_provider"
+            prompt: "Cloud provider (AWS, Azure, GCP, etc.)"
+          - type: "text"
+            name: "account_id"
+            prompt: "Cloud account ID or subscription ID"
+          - type: "text"
+            name: "account_name"
+            prompt: "Account or subscription name"
+
+      - id: "intake_003"
+        step: "Classify account type and criticality"
+        description: "Determine if root/admin account, service account, or user account"
+        assigned_to: "iam_specialist"
+        estimated_time_minutes: 10
+        dependencies: ["intake_002"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "account_type"
+            prompt: "Account type (root, admin, service account, user)"
+          - type: "text"
+            name: "account_permissions"
+            prompt: "Summary of account permissions"
+
+      - id: "intake_004"
+        step: "Assess detection method"
+        description: "Determine how compromise was detected"
+        assigned_to: "cloud_security_analyst"
+        estimated_time_minutes: 10
+        evidence_required:
+          - type: "text"
+            name: "detection_method"
+            prompt: "How was compromise detected (CloudTrail, GuardDuty, cost alert, etc.)?"
+
+      - id: "intake_005"
+        step: "Check for obvious attacker activity"
+        description: "Quick scan for resource creation, cryptomining, or data access"
+        assigned_to: "cloud_security_analyst"
+        estimated_time_minutes: 20
+        dependencies: ["intake_002"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "unauthorized_resources_found"
+            prompt: "Were unauthorized resources found?"
+          - type: "text"
+            name: "initial_activity_summary"
+            prompt: "Summary of initial suspicious activity observed"
+
+  investigation:
+    description: "Analyze cloud compromise scope and impact"
+    primary_role: "cloud_security_analyst"
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    sla:
+      target_completion_hours: 4
+      escalation_threshold_hours: 6
+      notify_roles: ["incident_commander", "cloud_architect"]
+
+    notifications:
+      - trigger: "step_completed"
+        step_id: "inv_005"
+        notify_roles: ["incident_commander", "finops_analyst"]
+        message: "Cloud cost impact assessment complete"
+
+    checklist:
+      - id: "inv_001"
+        step: "Analyze cloud audit logs"
+        description: "Review CloudTrail/Azure Activity/GCP Audit logs for all activity"
+        assigned_to: "cloud_security_analyst"
+        estimated_time_minutes: 60
+        critical: true
+        evidence_required:
+          - type: "timestamp"
+            name: "first_unauthorized_activity"
+            prompt: "Timestamp of first unauthorized activity"
+          - type: "text"
+            name: "attacker_source_ips"
+            prompt: "Source IP addresses used by attacker"
+          - type: "text"
+            name: "attacker_user_agents"
+            prompt: "User agents used in unauthorized access"
+
+      - id: "inv_002"
+        step: "Identify how credentials were compromised"
+        description: "Determine compromise vector (leaked keys, phishing, etc.)"
+        assigned_to: "cloud_security_analyst"
+        estimated_time_minutes: 45
+        dependencies: ["inv_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "compromise_vector"
+            prompt: "How were cloud credentials compromised?"
+          - type: "text"
+            name: "compromised_credentials_type"
+            prompt: "Type of credentials (access keys, password, session token)"
+
+      - id: "inv_003"
+        step: "Inventory unauthorized resources created"
+        description: "List all resources created by attacker"
+        assigned_to: "cloud_architect"
+        estimated_time_minutes: 45
+        parallel_group: "impact_assessment"
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "unauthorized_resources_list"
+            prompt: "Complete list of unauthorized resources"
+          - type: "number"
+            name: "unauthorized_resources_count"
+            prompt: "Total count of unauthorized resources"
+
+      - id: "inv_004"
+        step: "Check for cryptomining activity"
+        description: "Look for cryptocurrency mining instances or containers"
+        assigned_to: "cloud_architect"
+        estimated_time_minutes: 30
+        parallel_group: "impact_assessment"
+        evidence_required:
+          - type: "boolean"
+            name: "cryptomining_detected"
+            prompt: "Was cryptomining activity detected?"
+          - type: "text"
+            name: "cryptomining_details"
+            prompt: "Details of cryptomining resources"
+            optional: true
+
+      - id: "inv_005"
+        step: "Assess financial impact"
+        description: "Calculate unauthorized cloud spending"
+        assigned_to: "finops_analyst"
+        estimated_time_minutes: 30
+        parallel_group: "impact_assessment"
+        evidence_required:
+          - type: "text"
+            name: "unauthorized_costs"
+            prompt: "Estimated unauthorized cloud costs"
+          - type: "text"
+            name: "cost_breakdown"
+            prompt: "Breakdown of costs by resource type"
+            optional: true
+
+      - id: "inv_006"
+        step: "Check for data access or exfiltration"
+        description: "Review S3/Blob/GCS access and data transfer"
+        assigned_to: "cloud_security_analyst"
+        estimated_time_minutes: 60
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "data_accessed"
+            prompt: "Was sensitive data accessed?"
+          - type: "text"
+            name: "accessed_resources"
+            prompt: "Storage buckets or databases accessed"
+            optional: true
+          - type: "text"
+            name: "data_transferred_volume"
+            prompt: "Volume of data transferred if detected"
+            optional: true
+
+      - id: "inv_007"
+        step: "Assess IAM policy modifications"
+        description: "Check if attacker modified permissions or created backdoor accounts"
+        assigned_to: "iam_specialist"
+        estimated_time_minutes: 40
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "iam_changes_detected"
+            prompt: "Were IAM policies or users modified?"
+          - type: "text"
+            name: "iam_modifications"
+            prompt: "Description of IAM changes"
+            optional: true
+
+      - id: "inv_008"
+        step: "Check for lateral movement"
+        description: "Determine if attacker moved to other cloud accounts or environments"
+        assigned_to: "cloud_security_analyst"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "boolean"
+            name: "lateral_movement_detected"
+            prompt: "Was lateral movement to other accounts detected?"
+          - type: "text"
+            name: "affected_accounts"
+            prompt: "Other affected cloud accounts"
+            optional: true
+
+      - id: "inv_009"
+        step: "Review MFA status"
+        description: "Check if MFA was enabled and if it was bypassed"
+        assigned_to: "iam_specialist"
+        estimated_time_minutes: 15
+        evidence_required:
+          - type: "boolean"
+            name: "mfa_enabled_on_account"
+            prompt: "Was MFA enabled on compromised account?"
+          - type: "boolean"
+            name: "mfa_bypassed"
+            prompt: "Was MFA bypassed?"
+            optional: true
+
+  containment:
+    description: "Stop attacker activity and prevent further damage"
+    primary_role: "incident_commander"
+    supporting_roles: ["cloud_security_analyst", "iam_specialist"]
+    handoff_to: "cloud_architect"
+
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
+
+    sla:
+      target_completion_hours: 1
+      escalation_threshold_hours: 2
+      notify_roles: ["incident_commander"]
+
+    checklist:
+      - id: "cont_001"
+        step: "Rotate compromised credentials immediately"
+        description: "Invalidate all access keys and reset passwords"
+        assigned_to: "iam_specialist"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "credentials_rotated"
+            prompt: "Compromised credentials rotated?"
+          - type: "timestamp"
+            name: "rotation_time"
+            prompt: "When were credentials rotated?"
+
+      - id: "cont_002"
+        step: "Terminate active attacker sessions"
+        description: "Revoke all active sessions for compromised account"
+        assigned_to: "iam_specialist"
+        estimated_time_minutes: 10
+        dependencies: ["cont_001"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "sessions_terminated"
+            prompt: "All sessions terminated?"
+
+      - id: "cont_003"
+        step: "Block attacker IP addresses"
+        description: "Add attacker IPs to security group deny rules or WAF"
+        assigned_to: "cloud_security_analyst"
+        estimated_time_minutes: 15
+        evidence_required:
+          - type: "text"
+            name: "blocked_ips"
+            prompt: "IP addresses blocked"
+
+      - id: "cont_004"
+        step: "Delete unauthorized resources"
+        description: "Terminate attacker-created instances, containers, and services"
+        assigned_to: "cloud_architect"
+        estimated_time_minutes: 30
+        critical: true
+        evidence_required:
+          - type: "number"
+            name: "resources_deleted"
+            prompt: "Number of unauthorized resources deleted"
+          - type: "text"
+            name: "deletion_verification"
+            prompt: "How was complete deletion verified?"
+
+      - id: "cont_005"
+        step: "Remove backdoor IAM accounts and roles"
+        description: "Delete any attacker-created users, roles, or access keys"
+        assigned_to: "iam_specialist"
+        estimated_time_minutes: 25
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "backdoor_accounts_removed"
+            prompt: "All backdoor accounts removed?"
+          - type: "number"
+            name: "accounts_removed_count"
+            prompt: "Number of backdoor accounts removed"
+
+      - id: "cont_006"
+        step: "Revert unauthorized IAM policy changes"
+        description: "Restore IAM policies to pre-compromise state"
+        assigned_to: "iam_specialist"
+        estimated_time_minutes: 30
+        dependencies: ["cont_005"]
+        evidence_required:
+          - type: "boolean"
+            name: "policies_reverted"
+            prompt: "IAM policies restored to secure state?"
+
+      - id: "cont_007"
+        step: "Enable comprehensive logging"
+        description: "Ensure all audit logging is enabled and flowing to SIEM"
+        assigned_to: "cloud_security_analyst"
+        estimated_time_minutes: 20
+        evidence_required:
+          - type: "boolean"
+            name: "logging_verified"
+            prompt: "Cloud audit logging verified active?"
+
+      - id: "cont_008"
+        step: "Isolate affected resources if needed"
+        description: "Network isolate any resources that cannot be immediately deleted"
+        assigned_to: "cloud_architect"
+        estimated_time_minutes: 20
+        evidence_required:
+          - type: "text"
+            name: "isolated_resources"
+            prompt: "Resources isolated pending investigation"
+            optional: true
+
+  remediation:
+    description: "Restore security posture and prevent recurrence"
+    primary_role: "cloud_architect"
+    supporting_roles: ["iam_specialist", "cloud_security_analyst"]
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    checklist:
+      - id: "rem_001"
+        step: "Enforce MFA organization-wide"
+        description: "Require MFA for all cloud accounts, especially privileged ones"
+        assigned_to: "iam_specialist"
+        estimated_time_minutes: 60
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "mfa_enforced"
+            prompt: "MFA enforcement enabled?"
+          - type: "text"
+            name: "mfa_policy_details"
+            prompt: "MFA policy configuration"
+
+      - id: "rem_002"
+        step: "Implement least privilege access"
+        description: "Review and reduce excessive cloud permissions"
+        assigned_to: "iam_specialist"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "text"
+            name: "privilege_review_summary"
+            prompt: "Summary of privilege reduction efforts"
+
+      - id: "rem_003"
+        step: "Enable cloud security services"
+        description: "Deploy GuardDuty/Security Center/Security Command Center"
+        assigned_to: "cloud_security_analyst"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "security_services_enabled"
+            prompt: "Cloud security services enabled"
+
+      - id: "rem_004"
+        step: "Configure automated threat detection"
+        description: "Set up alerts for suspicious cloud activity"
+        assigned_to: "cloud_security_analyst"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "detection_rules_configured"
+            prompt: "Threat detection rules configured"
+
+      - id: "rem_005"
+        step: "Implement SCPs or Azure Policies"
+        description: "Use service control policies to limit blast radius"
+        assigned_to: "cloud_architect"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "preventive_controls"
+            prompt: "Preventive controls implemented"
+
+      - id: "rem_006"
+        step: "Rotate all cloud credentials organization-wide"
+        description: "Proactive rotation of all access keys and secrets"
+        assigned_to: "iam_specialist"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "boolean"
+            name: "organization_rotation_complete"
+            prompt: "Organization-wide credential rotation complete?"
+
+      - id: "rem_007"
+        step: "Implement secrets management solution"
+        description: "Deploy Secrets Manager/Key Vault for credential management"
+        assigned_to: "cloud_architect"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "text"
+            name: "secrets_solution"
+            prompt: "Secrets management solution deployed"
+
+      - id: "rem_008"
+        step: "Configure budget alerts"
+        description: "Set up cloud cost anomaly detection and alerts"
+        assigned_to: "finops_analyst"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "budget_alerts"
+            prompt: "Budget and cost anomaly alerts configured"
+
+      - id: "rem_009"
+        step: "Review and harden security groups and network ACLs"
+        description: "Implement zero trust network controls"
+        assigned_to: "cloud_architect"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "network_hardening"
+            prompt: "Network security hardening completed"
+
+  closure:
+    description: "Final documentation and cloud security improvements"
+    primary_role: "incident_commander"
+
+    checklist:
+      - id: "close_001"
+        step: "Document financial impact"
+        description: "Calculate final unauthorized cloud costs incurred"
+        assigned_to: "finops_analyst"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "final_cost_impact"
+            prompt: "Final calculated financial impact"
+
+      - id: "close_002"
+        step: "Create incident timeline"
+        description: "Document timeline from initial compromise to resolution"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete incident timeline"
+
+      - id: "close_003"
+        step: "File cloud provider support case"
+        description: "Report incident to cloud provider for potential cost credits"
+        assigned_to: "cloud_architect"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "support_case_number"
+            prompt: "Cloud provider support case number"
+            optional: true
+
+      - id: "close_004"
+        step: "Update cloud security policies"
+        description: "Incorporate lessons learned into cloud security program"
+        assigned_to: "cloud_security_analyst"
+        estimated_time_minutes: 60
+        dependencies: ["close_001", "close_002"]
+        evidence_required:
+          - type: "text"
+            name: "lessons_learned"
+            prompt: "Key lessons learned"
+          - type: "text"
+            name: "policy_updates"
+            prompt: "Cloud security policy updates"
+
+# Risk Assessment Criteria
+risk_factors:
+  critical_risk:
+    - account_type: "root"
+    - account_type: "admin"
+    - data_accessed: "yes"
+    - lateral_movement: "yes"
+
+  high_risk:
+    - resources_created: "yes"
+    - cryptomining_detected: "yes"
+    - iam_changes_detected: true
+    - mfa_enabled: "no"
+
+  medium_risk:
+    - unauthorized_actions: "read_only"
+    - cryptomining_detected: "no"
+
+  low_risk:
+    - mfa_enabled: "yes"
+    - account_type: "user"
+    - resources_created: "no"
+
+# Escalation Criteria
+escalation:
+  immediate:
+    criteria:
+      - "Root or admin account compromise"
+      - "Production data accessed or exfiltrated"
+      - "Lateral movement to multiple cloud accounts"
+      - "Unauthorized costs exceeding $10,000"
+    notify_roles:
+      - "incident_commander"
+      - "cloud_security_analyst"
+      - "cloud_architect"
+    additional_roles_required:
+      - "ciso"
+      - "cto"
+      - "cfo"
+
+  standard:
+    criteria:
+      - "Service account compromise"
+      - "Cryptomining activity detected"
+      - "IAM backdoors created"
+      - "Unauthorized costs between $1,000-$10,000"
+    notify_roles:
+      - "incident_commander"
+      - "cloud_security_analyst"
+
+  low_priority:
+    criteria:
+      - "Read-only account compromise with no data access"
+      - "Minimal unauthorized activity detected"
+      - "MFA prevented most unauthorized actions"
+    notify_roles:
+      - "cloud_security_analyst"

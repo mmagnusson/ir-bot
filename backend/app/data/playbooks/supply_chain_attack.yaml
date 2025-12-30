@@ -1,0 +1,588 @@
+# Supply Chain Attack Incident Response Playbook
+# Handles compromised software/hardware vendors, third-party services, and dependency attacks
+
+incident_type: supply_chain_attack
+
+# Role definitions for this incident type
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads response and coordinates across teams"
+    required: true
+
+  threat_intelligence_analyst:
+    name: "Threat Intelligence Analyst"
+    description: "Researches supply chain compromise and threat actors"
+    required: true
+
+  infrastructure_analyst:
+    name: "Infrastructure Security Analyst"
+    description: "Assesses internal systems for compromise indicators"
+    required: true
+
+  vendor_management:
+    name: "Vendor Management Specialist"
+    description: "Coordinates with affected vendors and alternatives"
+    required: true
+
+  software_engineer:
+    name: "Software Engineering Lead"
+    description: "Analyzes code dependencies and implements fixes"
+    required: true
+
+  procurement_officer:
+    name: "Procurement Officer"
+    description: "Manages vendor contracts and alternative sourcing"
+    required: false
+    escalation_triggers: ["vendor_replacement_needed"]
+
+  legal_counsel:
+    name: "Legal Counsel"
+    description: "Handles vendor liability and contractual issues"
+    required: false
+    escalation_triggers: ["data_breach", "service_disruption"]
+
+phases:
+  intake:
+    description: "Initial supply chain compromise assessment"
+    primary_role: "incident_commander"
+    handoff_to: "threat_intelligence_analyst"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      checklist_completion_threshold: 100
+
+    required_fields:
+      - affected_vendor
+      - compromised_component
+      - attack_vector
+      - time_of_detection
+
+    checklist:
+      - id: "intake_001"
+        step: "Verify supply chain attack classification"
+        description: "Confirm this is a supply chain compromise"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_rationale"
+            prompt: "Why is this classified as supply chain attack?"
+
+      - id: "intake_002"
+        step: "Identify compromised vendor/component"
+        description: "Determine which vendor or component is compromised"
+        assigned_to: "vendor_management"
+        estimated_time_minutes: 15
+        dependencies: ["intake_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "vendor_name"
+            prompt: "Name of affected vendor/supplier"
+          - type: "text"
+            name: "component_details"
+            prompt: "Compromised component (software, hardware, service)"
+          - type: "text"
+            name: "component_version"
+            prompt: "Version/build number if applicable"
+
+      - id: "intake_003"
+        step: "Determine how compromise was discovered"
+        description: "Identify detection source (vendor notification, threat intel, internal detection)"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 10
+        evidence_required:
+          - type: "text"
+            name: "discovery_source"
+            prompt: "How was supply chain compromise discovered?"
+
+      - id: "intake_004"
+        step: "Assess internal deployment scope"
+        description: "Determine where compromised component is deployed internally"
+        assigned_to: "infrastructure_analyst"
+        estimated_time_minutes: 30
+        dependencies: ["intake_002"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "component_deployed_internally"
+            prompt: "Is compromised component deployed in our environment?"
+          - type: "number"
+            name: "affected_systems_count"
+            prompt: "Number of internal systems with compromised component"
+            optional: true
+
+      - id: "intake_005"
+        step: "Check vendor communication"
+        description: "Review any vendor advisory or notification about the compromise"
+        assigned_to: "vendor_management"
+        estimated_time_minutes: 20
+        evidence_required:
+          - type: "boolean"
+            name: "vendor_issued_advisory"
+            prompt: "Has vendor issued a security advisory?"
+          - type: "text"
+            name: "vendor_advisory_details"
+            prompt: "Summary of vendor advisory"
+            optional: true
+
+  investigation:
+    description: "Analyze compromise scope and internal impact"
+    primary_role: "threat_intelligence_analyst"
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    sla:
+      target_completion_hours: 8
+      escalation_threshold_hours: 12
+      notify_roles: ["incident_commander", "infrastructure_analyst"]
+
+    notifications:
+      - trigger: "step_completed"
+        step_id: "inv_003"
+        notify_roles: ["incident_commander", "software_engineer"]
+        message: "Malicious code analysis complete"
+
+    checklist:
+      - id: "inv_001"
+        step: "Research supply chain attack details"
+        description: "Gather threat intelligence on the compromise"
+        assigned_to: "threat_intelligence_analyst"
+        estimated_time_minutes: 60
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "attack_summary"
+            prompt: "Summary of supply chain attack details"
+          - type: "text"
+            name: "threat_actor"
+            prompt: "Suspected threat actor if known"
+            optional: true
+          - type: "text"
+            name: "attack_timeline"
+            prompt: "When did vendor compromise occur?"
+
+      - id: "inv_002"
+        step: "Identify indicators of compromise"
+        description: "Compile IOCs related to the supply chain attack"
+        assigned_to: "threat_intelligence_analyst"
+        estimated_time_minutes: 45
+        dependencies: ["inv_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "ioc_list"
+            prompt: "List of IOCs (file hashes, domains, IPs, etc.)"
+
+      - id: "inv_003"
+        step: "Analyze compromised component for malicious code"
+        description: "Reverse engineer or analyze component for backdoors/malware"
+        assigned_to: "software_engineer"
+        estimated_time_minutes: 120
+        conditions:
+          triggers_when:
+            component_deployed_internally: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "malicious_code_found"
+            prompt: "Was malicious code found in component?"
+          - type: "text"
+            name: "malicious_functionality"
+            prompt: "Description of malicious functionality"
+            optional: true
+
+      - id: "inv_004"
+        step: "Scan internal systems for IOCs"
+        description: "Hunt for IOCs across internal infrastructure"
+        assigned_to: "infrastructure_analyst"
+        estimated_time_minutes: 90
+        dependencies: ["inv_002"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "iocs_detected_internally"
+            prompt: "Were IOCs detected on internal systems?"
+          - type: "number"
+            name: "compromised_systems_count"
+            prompt: "Number of systems with IOC detections"
+            optional: true
+          - type: "text"
+            name: "affected_systems_list"
+            prompt: "List of affected systems"
+            optional: true
+
+      - id: "inv_005"
+        step: "Review affected component update history"
+        description: "Determine when compromised version was deployed"
+        assigned_to: "infrastructure_analyst"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "timestamp"
+            name: "deployment_date"
+            prompt: "When was compromised component deployed?"
+          - type: "text"
+            name: "deployment_method"
+            prompt: "How was component deployed (auto-update, manual, etc.)?"
+
+      - id: "inv_006"
+        step: "Check for lateral movement or persistence"
+        description: "Look for attacker activity beyond the compromised component"
+        assigned_to: "infrastructure_analyst"
+        estimated_time_minutes: 60
+        dependencies: ["inv_004"]
+        conditions:
+          triggers_when:
+            iocs_detected_internally: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "lateral_movement_detected"
+            prompt: "Was lateral movement detected?"
+          - type: "boolean"
+            name: "persistence_mechanisms_found"
+            prompt: "Were persistence mechanisms found?"
+
+      - id: "inv_007"
+        step: "Assess data access or exfiltration"
+        description: "Determine if attackers accessed or stole data"
+        assigned_to: "infrastructure_analyst"
+        estimated_time_minutes: 45
+        conditions:
+          triggers_when:
+            iocs_detected_internally: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "data_access_suspected"
+            prompt: "Is unauthorized data access suspected?"
+          - type: "text"
+            name: "affected_data_description"
+            prompt: "Description of potentially affected data"
+            optional: true
+
+      - id: "inv_008"
+        step: "Inventory all vendor dependencies"
+        description: "Create list of all products/services from affected vendor"
+        assigned_to: "vendor_management"
+        estimated_time_minutes: 60
+        parallel_group: "vendor_assessment"
+        evidence_required:
+          - type: "text"
+            name: "vendor_dependency_inventory"
+            prompt: "Complete list of dependencies on affected vendor"
+
+      - id: "inv_009"
+        step: "Research alternative vendors"
+        description: "Identify potential replacement vendors"
+        assigned_to: "procurement_officer"
+        estimated_time_minutes: 90
+        parallel_group: "vendor_assessment"
+        evidence_required:
+          - type: "text"
+            name: "alternative_vendors"
+            prompt: "List of alternative vendors researched"
+
+  containment:
+    description: "Isolate compromised components and prevent further damage"
+    primary_role: "incident_commander"
+    supporting_roles: ["infrastructure_analyst", "software_engineer"]
+    handoff_to: "software_engineer"
+
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
+
+    sla:
+      target_completion_hours: 4
+      escalation_threshold_hours: 6
+      notify_roles: ["incident_commander"]
+
+    checklist:
+      - id: "cont_001"
+        step: "Isolate affected systems"
+        description: "Network isolate systems with compromised component"
+        assigned_to: "infrastructure_analyst"
+        estimated_time_minutes: 30
+        conditions:
+          triggers_when:
+            internal_systems_affected: "yes"
+        critical: true
+        evidence_required:
+          - type: "number"
+            name: "systems_isolated"
+            prompt: "Number of systems isolated"
+          - type: "timestamp"
+            name: "isolation_time"
+            prompt: "When were systems isolated?"
+
+      - id: "cont_002"
+        step: "Block vendor update mechanisms"
+        description: "Disable auto-updates from compromised vendor"
+        assigned_to: "infrastructure_analyst"
+        estimated_time_minutes: 20
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "auto_updates_disabled"
+            prompt: "Auto-updates from vendor disabled?"
+
+      - id: "cont_003"
+        step: "Remove compromised component"
+        description: "Uninstall or disable compromised software/hardware"
+        assigned_to: "infrastructure_analyst"
+        estimated_time_minutes: 60
+        dependencies: ["cont_001"]
+        critical: true
+        evidence_required:
+          - type: "number"
+            name: "components_removed"
+            prompt: "Number of compromised components removed"
+
+      - id: "cont_004"
+        step: "Block command and control infrastructure"
+        description: "Block IOC domains and IPs at perimeter"
+        assigned_to: "infrastructure_analyst"
+        estimated_time_minutes: 15
+        evidence_required:
+          - type: "text"
+            name: "blocked_iocs"
+            prompt: "IOCs added to blocklist"
+
+      - id: "cont_005"
+        step: "Remove persistence mechanisms"
+        description: "Delete any attacker-placed backdoors or scheduled tasks"
+        assigned_to: "infrastructure_analyst"
+        estimated_time_minutes: 45
+        conditions:
+          triggers_when:
+            persistence_mechanisms_found: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "persistence_removed"
+            prompt: "All persistence mechanisms removed?"
+
+      - id: "cont_006"
+        step: "Notify affected vendor"
+        description: "Inform vendor of detected compromise if they're unaware"
+        assigned_to: "vendor_management"
+        estimated_time_minutes: 30
+        conditions:
+          triggers_when:
+            vendor_issued_advisory: false
+        evidence_required:
+          - type: "boolean"
+            name: "vendor_notified"
+            prompt: "Vendor notified of compromise?"
+          - type: "timestamp"
+            name: "vendor_notification_time"
+            prompt: "When was vendor notified?"
+
+      - id: "cont_007"
+        step: "Suspend vendor access to systems"
+        description: "Revoke vendor remote access and API credentials"
+        assigned_to: "infrastructure_analyst"
+        estimated_time_minutes: 25
+        evidence_required:
+          - type: "boolean"
+            name: "vendor_access_revoked"
+            prompt: "Vendor access suspended?"
+
+  remediation:
+    description: "Replace compromised components and restore security"
+    primary_role: "software_engineer"
+    supporting_roles: ["vendor_management", "procurement_officer"]
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    checklist:
+      - id: "rem_001"
+        step: "Deploy clean version of component"
+        description: "Install verified clean version from vendor or alternative"
+        assigned_to: "software_engineer"
+        estimated_time_minutes: 90
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "clean_version"
+            prompt: "Version number of clean component deployed"
+          - type: "text"
+            name: "verification_method"
+            prompt: "How was component verified as clean?"
+
+      - id: "rem_002"
+        step: "Rebuild compromised systems"
+        description: "Rebuild systems from known-good images"
+        assigned_to: "infrastructure_analyst"
+        estimated_time_minutes: 180
+        conditions:
+          triggers_when:
+            malicious_code_identified: "yes"
+        critical: true
+        evidence_required:
+          - type: "number"
+            name: "systems_rebuilt"
+            prompt: "Number of systems rebuilt"
+
+      - id: "rem_003"
+        step: "Implement vendor security assessment process"
+        description: "Create vendor security review requirements"
+        assigned_to: "vendor_management"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "text"
+            name: "vendor_assessment_process"
+            prompt: "Description of new vendor security assessment process"
+
+      - id: "rem_004"
+        step: "Establish software bill of materials (SBOM)"
+        description: "Document all third-party dependencies"
+        assigned_to: "software_engineer"
+        estimated_time_minutes: 150
+        evidence_required:
+          - type: "boolean"
+            name: "sbom_created"
+            prompt: "SBOM created for critical applications?"
+
+      - id: "rem_005"
+        step: "Implement dependency monitoring"
+        description: "Deploy tools to monitor third-party dependencies for vulnerabilities"
+        assigned_to: "software_engineer"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "monitoring_tools"
+            prompt: "Dependency monitoring tools implemented"
+
+      - id: "rem_006"
+        step: "Review and update vendor contracts"
+        description: "Add security requirements to vendor agreements"
+        assigned_to: "procurement_officer"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "text"
+            name: "contract_updates"
+            prompt: "Security requirements added to contracts"
+
+      - id: "rem_007"
+        step: "Establish vendor incident response coordination"
+        description: "Create process for coordinating with vendors during incidents"
+        assigned_to: "vendor_management"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "vendor_coordination_process"
+            prompt: "Vendor incident coordination process documented"
+
+  closure:
+    description: "Final documentation and supply chain security improvements"
+    primary_role: "incident_commander"
+
+    checklist:
+      - id: "close_001"
+        step: "Document supply chain attack details"
+        description: "Create comprehensive report of attack and response"
+        assigned_to: "threat_intelligence_analyst"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "attack_documentation"
+            prompt: "Complete documentation of supply chain attack"
+
+      - id: "close_002"
+        step: "Create incident timeline"
+        description: "Document timeline from vendor compromise to resolution"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete incident timeline"
+
+      - id: "close_003"
+        step: "Assess vendor relationship continuation"
+        description: "Decide whether to continue using affected vendor"
+        assigned_to: "vendor_management"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "vendor_decision"
+            prompt: "Decision on future vendor relationship"
+
+      - id: "close_004"
+        step: "Update supply chain risk management program"
+        description: "Incorporate lessons learned into supply chain security"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 60
+        dependencies: ["close_001", "close_002", "close_003"]
+        evidence_required:
+          - type: "text"
+            name: "lessons_learned"
+            prompt: "Key lessons learned"
+          - type: "text"
+            name: "program_improvements"
+            prompt: "Improvements to supply chain risk program"
+
+# Risk Assessment Criteria
+risk_factors:
+  critical_risk:
+    - malicious_code_identified: "yes"
+    - internal_systems_affected: "yes"
+    - data_access_suspected: true
+    - lateral_movement_detected: true
+
+  high_risk:
+    - component_deployed_internally: true
+    - iocs_detected_internally: true
+    - persistence_mechanisms_found: true
+
+  medium_risk:
+    - vendor_issued_advisory: true
+    - component_deployed_internally: false
+
+  low_risk:
+    - component_deployed_internally: false
+    - vendor_issued_advisory: true
+    - alternative_vendor_identified: "yes"
+
+# Escalation Criteria
+escalation:
+  immediate:
+    criteria:
+      - "Active exploitation of internal systems detected"
+      - "Widespread deployment of compromised component"
+      - "Data exfiltration confirmed"
+      - "Critical infrastructure component affected"
+    notify_roles:
+      - "incident_commander"
+      - "threat_intelligence_analyst"
+      - "infrastructure_analyst"
+    additional_roles_required:
+      - "ciso"
+      - "cto"
+      - "ceo"
+
+  standard:
+    criteria:
+      - "Compromised component deployed but no active exploitation"
+      - "Limited internal deployment"
+      - "Vendor issued advisory with patch available"
+    notify_roles:
+      - "incident_commander"
+      - "vendor_management"
+
+  low_priority:
+    criteria:
+      - "Compromised component not deployed internally"
+      - "Vendor compromise announced with no customer impact"
+    notify_roles:
+      - "vendor_management"

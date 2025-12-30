@@ -52,6 +52,36 @@ async def create_incident(request: IncidentCreateRequest):
         incident_data["ddos_data"] = request.ddos_data
     if request.unauthorized_access_data:
         incident_data["unauthorized_access_data"] = request.unauthorized_access_data
+    if request.bec_data:
+        incident_data["bec_data"] = request.bec_data
+    if request.web_application_attack_data:
+        incident_data["web_application_attack_data"] = request.web_application_attack_data
+    if request.data_exfiltration_data:
+        incident_data["data_exfiltration_data"] = request.data_exfiltration_data
+    if request.supply_chain_attack_data:
+        incident_data["supply_chain_attack_data"] = request.supply_chain_attack_data
+    if request.cloud_account_compromise_data:
+        incident_data["cloud_account_compromise_data"] = request.cloud_account_compromise_data
+    if request.api_security_breach_data:
+        incident_data["api_security_breach_data"] = request.api_security_breach_data
+    if request.credential_stuffing_data:
+        incident_data["credential_stuffing_data"] = request.credential_stuffing_data
+    if request.zero_day_exploit_data:
+        incident_data["zero_day_exploit_data"] = request.zero_day_exploit_data
+    if request.container_compromise_data:
+        incident_data["container_compromise_data"] = request.container_compromise_data
+    if request.iot_device_compromise_data:
+        incident_data["iot_device_compromise_data"] = request.iot_device_compromise_data
+    if request.backup_system_compromise_data:
+        incident_data["backup_system_compromise_data"] = request.backup_system_compromise_data
+    if request.dns_hijacking_data:
+        incident_data["dns_hijacking_data"] = request.dns_hijacking_data
+    if request.saas_application_compromise_data:
+        incident_data["saas_application_compromise_data"] = request.saas_application_compromise_data
+    if request.mobile_device_compromise_data:
+        incident_data["mobile_device_compromise_data"] = request.mobile_device_compromise_data
+    if request.regulatory_compliance_incident_data:
+        incident_data["regulatory_compliance_incident_data"] = request.regulatory_compliance_incident_data
 
     incident = IncidentState(**incident_data)
 
@@ -98,6 +128,36 @@ async def update_incident(incident_id: str, request: IncidentUpdateRequest):
         incident.ddos_data = request.ddos_data
     if request.unauthorized_access_data:
         incident.unauthorized_access_data = request.unauthorized_access_data
+    if request.bec_data:
+        incident.bec_data = request.bec_data
+    if request.web_application_attack_data:
+        incident.web_application_attack_data = request.web_application_attack_data
+    if request.data_exfiltration_data:
+        incident.data_exfiltration_data = request.data_exfiltration_data
+    if request.supply_chain_attack_data:
+        incident.supply_chain_attack_data = request.supply_chain_attack_data
+    if request.cloud_account_compromise_data:
+        incident.cloud_account_compromise_data = request.cloud_account_compromise_data
+    if request.api_security_breach_data:
+        incident.api_security_breach_data = request.api_security_breach_data
+    if request.credential_stuffing_data:
+        incident.credential_stuffing_data = request.credential_stuffing_data
+    if request.zero_day_exploit_data:
+        incident.zero_day_exploit_data = request.zero_day_exploit_data
+    if request.container_compromise_data:
+        incident.container_compromise_data = request.container_compromise_data
+    if request.iot_device_compromise_data:
+        incident.iot_device_compromise_data = request.iot_device_compromise_data
+    if request.backup_system_compromise_data:
+        incident.backup_system_compromise_data = request.backup_system_compromise_data
+    if request.dns_hijacking_data:
+        incident.dns_hijacking_data = request.dns_hijacking_data
+    if request.saas_application_compromise_data:
+        incident.saas_application_compromise_data = request.saas_application_compromise_data
+    if request.mobile_device_compromise_data:
+        incident.mobile_device_compromise_data = request.mobile_device_compromise_data
+    if request.regulatory_compliance_incident_data:
+        incident.regulatory_compliance_incident_data = request.regulatory_compliance_incident_data
 
     if request.actions_taken:
         incident.actions_taken.extend(request.actions_taken)
@@ -191,3 +251,4 @@ async def delete_incident(incident_id: str):
 
     del incidents_db[incident_id]
     return {"message": "Incident deleted"}
+

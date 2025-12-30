@@ -1,0 +1,484 @@
+# DNS Hijacking Incident Response Playbook
+# Handles domain hijacking, DNS poisoning, subdomain takeovers, and registrar compromises
+
+incident_type: dns_hijacking
+
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads DNS hijacking response"
+    required: true
+
+  dns_administrator:
+    name: "DNS Administrator"
+    description: "Manages DNS configurations and recovery"
+    required: true
+
+  security_analyst:
+    name: "Security Analyst"
+    description: "Investigates attack methods and threat actors"
+    required: true
+
+  domain_registrar_liaison:
+    name: "Domain Registrar Liaison"
+    description: "Coordinates with domain registrar support"
+    required: true
+
+  certificate_authority_liaison:
+    name: "Certificate Authority Liaison"
+    description: "Handles SSL/TLS certificate revocation"
+    required: false
+
+phases:
+  intake:
+    description: "Initial DNS hijacking assessment"
+    primary_role: "incident_commander"
+    handoff_to: "dns_administrator"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      checklist_completion_threshold: 100
+
+    required_fields:
+      - affected_domain
+      - hijack_type
+      - dns_provider
+      - time_of_detection
+
+    checklist:
+      - id: "intake_001"
+        step: "Verify DNS hijacking classification"
+        description: "Confirm DNS infrastructure is compromised"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_rationale"
+            prompt: "Evidence of DNS hijacking"
+
+      - id: "intake_002"
+        step: "Identify affected domains"
+        description: "List all domains impacted by hijacking"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "affected_domains_list"
+            prompt: "List of affected domain names"
+
+      - id: "intake_003"
+        step: "Classify hijack type"
+        description: "Determine type of DNS attack"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "hijack_type_details"
+            prompt: "Type (registrar takeover, DNS poisoning, subdomain takeover, cache poisoning)"
+
+      - id: "intake_004"
+        step: "Check registrar account access"
+        description: "Verify ability to access domain registrar account"
+        assigned_to: "domain_registrar_liaison"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "registrar_access_available"
+            prompt: "Can you access registrar account?"
+
+  investigation:
+    description: "Analyze DNS compromise and impact"
+    primary_role: "dns_administrator"
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    sla:
+      target_completion_hours: 2
+      escalation_threshold_hours: 3
+
+    checklist:
+      - id: "inv_001"
+        step: "Query current DNS records"
+        description: "Check current DNS configuration from multiple sources"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 30
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "current_dns_records"
+            prompt: "Current DNS records (NS, A, MX, TXT)"
+
+      - id: "inv_002"
+        step: "Compare against known good configuration"
+        description: "Identify unauthorized DNS changes"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 20
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "unauthorized_changes"
+            prompt: "List of unauthorized DNS modifications"
+
+      - id: "inv_003"
+        step: "Check for malicious nameservers"
+        description: "Identify attacker-controlled nameservers"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 25
+        evidence_required:
+          - type: "text"
+            name: "malicious_nameservers"
+            prompt: "Malicious NS records if found"
+            optional: true
+
+      - id: "inv_004"
+        step: "Review registrar account activity"
+        description: "Analyze registrar audit logs for unauthorized access"
+        assigned_to: "domain_registrar_liaison"
+        estimated_time_minutes: 40
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "registrar_account_compromised"
+            prompt: "Was registrar account compromised?"
+          - type: "text"
+            name: "registrar_activity_log"
+            prompt: "Suspicious registrar activity"
+
+      - id: "inv_005"
+        step: "Check SSL/TLS certificate issuance"
+        description: "Verify if certificates were fraudulently issued"
+        assigned_to: "certificate_authority_liaison"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "fraudulent_certificate_issued"
+            prompt: "Was a fraudulent SSL certificate issued?"
+
+      - id: "inv_006"
+        step: "Assess email routing impact"
+        description: "Determine if MX records were modified"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 20
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "email_routing_affected"
+            prompt: "Were MX records modified?"
+
+      - id: "inv_007"
+        step: "Check DNSSEC status"
+        description: "Verify DNSSEC configuration and signing"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 25
+        evidence_required:
+          - type: "boolean"
+            name: "dnssec_enabled"
+            prompt: "Was DNSSEC enabled?"
+          - type: "boolean"
+            name: "dnssec_validation_failed"
+            prompt: "Did DNSSEC validation fail?"
+            optional: true
+
+      - id: "inv_008"
+        step: "Identify attack vector"
+        description: "Determine how access was gained"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 50
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "attack_vector"
+            prompt: "How was access obtained (credential theft, social engineering, etc.)?"
+
+  containment:
+    description: "Lock accounts and revert DNS changes"
+    primary_role: "incident_commander"
+    supporting_roles: ["dns_administrator", "domain_registrar_liaison"]
+    handoff_to: "dns_administrator"
+
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
+
+    sla:
+      target_completion_hours: 1
+      escalation_threshold_hours: 2
+
+    checklist:
+      - id: "cont_001"
+        step: "Lock registrar account"
+        description: "Enable registry lock or account freeze"
+        assigned_to: "domain_registrar_liaison"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "registrar_account_locked"
+            prompt: "Registrar account locked?"
+
+      - id: "cont_002"
+        step: "Reset registrar credentials"
+        description: "Change all registrar account passwords immediately"
+        assigned_to: "domain_registrar_liaison"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "registrar_credentials_reset"
+            prompt: "Registrar credentials changed?"
+
+      - id: "cont_003"
+        step: "Revert DNS records to known good state"
+        description: "Restore legitimate DNS configuration"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 30
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "dns_records_reverted"
+            prompt: "DNS records restored?"
+          - type: "text"
+            name: "restored_dns_config"
+            prompt: "Restored DNS configuration"
+
+      - id: "cont_004"
+        step: "Update DNS TTL to minimum"
+        description: "Reduce TTL to speed up propagation of fixes"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 10
+        evidence_required:
+          - type: "number"
+            name: "new_ttl_value"
+            prompt: "New TTL value in seconds"
+
+      - id: "cont_005"
+        step: "Revoke fraudulent SSL certificates"
+        description: "Request certificate revocation from CA"
+        assigned_to: "certificate_authority_liaison"
+        estimated_time_minutes: 30
+        conditions:
+          triggers_when:
+            fraudulent_certificate_issued: "yes"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "certificates_revoked"
+            prompt: "Fraudulent certificates revoked?"
+
+      - id: "cont_006"
+        step: "Enable registrar transfer lock"
+        description: "Prevent unauthorized domain transfers"
+        assigned_to: "domain_registrar_liaison"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "transfer_lock_enabled"
+            prompt: "Domain transfer lock enabled?"
+
+      - id: "cont_007"
+        step: "Notify users of potential phishing"
+        description: "Warn users about potential malicious content"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 20
+        evidence_required:
+          - type: "boolean"
+            name: "users_notified"
+            prompt: "Users notified of hijacking?"
+
+  remediation:
+    description: "Harden DNS security long-term"
+    primary_role: "dns_administrator"
+    supporting_roles: ["security_analyst", "domain_registrar_liaison"]
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    checklist:
+      - id: "rem_001"
+        step: "Enable DNSSEC"
+        description: "Implement DNSSEC signing for domain"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 90
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "dnssec_implemented"
+            prompt: "DNSSEC enabled and validated?"
+
+      - id: "rem_002"
+        step: "Implement CAA records"
+        description: "Add CAA records to restrict certificate issuance"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "caa_records"
+            prompt: "CAA records configured"
+
+      - id: "rem_003"
+        step: "Enable registrar two-factor authentication"
+        description: "Require 2FA for registrar account access"
+        assigned_to: "domain_registrar_liaison"
+        estimated_time_minutes: 20
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "registrar_2fa_enabled"
+            prompt: "2FA enabled on registrar account?"
+
+      - id: "rem_004"
+        step: "Implement registry lock"
+        description: "Enable server-side registry lock at registrar"
+        assigned_to: "domain_registrar_liaison"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "registry_lock_enabled"
+            prompt: "Registry lock enabled?"
+
+      - id: "rem_005"
+        step: "Configure DNS monitoring"
+        description: "Set up monitoring for DNS record changes"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "dns_monitoring_solution"
+            prompt: "DNS monitoring solution deployed"
+
+      - id: "rem_006"
+        step: "Enable Certificate Transparency monitoring"
+        description: "Monitor CT logs for unauthorized certificates"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "ct_monitoring_solution"
+            prompt: "Certificate Transparency monitoring enabled"
+
+      - id: "rem_007"
+        step: "Implement SPF, DKIM, and DMARC"
+        description: "Harden email authentication to prevent spoofing"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "boolean"
+            name: "email_authentication_configured"
+            prompt: "SPF/DKIM/DMARC configured?"
+
+      - id: "rem_008"
+        step: "Review and minimize DNS attack surface"
+        description: "Remove unnecessary DNS records and subdomains"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "dns_cleanup"
+            prompt: "DNS records cleaned up"
+
+      - id: "rem_009"
+        step: "Document DNS architecture"
+        description: "Create comprehensive DNS documentation"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "boolean"
+            name: "dns_documentation_created"
+            prompt: "DNS documentation completed?"
+
+  closure:
+    description: "Final documentation and improvements"
+    primary_role: "incident_commander"
+
+    checklist:
+      - id: "close_001"
+        step: "Document DNS hijacking details"
+        description: "Create comprehensive technical report"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "technical_report"
+            prompt: "Complete technical documentation"
+
+      - id: "close_002"
+        step: "Create incident timeline"
+        description: "Document hijacking and recovery timeline"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete timeline"
+
+      - id: "close_003"
+        step: "Update DNS security policies"
+        description: "Strengthen DNS management policies"
+        assigned_to: "dns_administrator"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "policy_updates"
+            prompt: "DNS security policy updates"
+
+      - id: "close_004"
+        step: "Conduct DNS security training"
+        description: "Train team on DNS security best practices"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "training_scheduled"
+            prompt: "DNS security training scheduled?"
+
+risk_factors:
+  critical_risk:
+    - registrar_account_compromised: "yes"
+    - fraudulent_certificate_issued: "yes"
+    - email_routing_affected: "yes"
+
+  high_risk:
+    - malicious_nameservers: "detected"
+    - dnssec_enabled: "no"
+
+  medium_risk:
+    - dns_records_modified: "yes"
+    - registrar_2fa_enabled: "no"
+
+  low_risk:
+    - dnssec_enabled: "yes"
+    - registry_lock_enabled: "yes"
+
+escalation:
+  immediate:
+    criteria:
+      - "Registrar account fully compromised"
+      - "Domain transferred to attacker"
+      - "Fraudulent SSL certificates issued for HTTPS hijacking"
+      - "Email MX records redirected"
+    notify_roles:
+      - "incident_commander"
+      - "dns_administrator"
+      - "domain_registrar_liaison"
+    additional_roles_required:
+      - "ciso"
+      - "legal_counsel"
+      - "communications_lead"
+
+  standard:
+    criteria:
+      - "Limited DNS record modification"
+      - "Subdomain takeover detected"
+    notify_roles:
+      - "incident_commander"
+      - "dns_administrator"

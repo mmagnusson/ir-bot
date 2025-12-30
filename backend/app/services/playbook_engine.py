@@ -183,6 +183,21 @@ class PlaybookEngine:
             "insider_threat": incident.insider_threat_data,
             "ddos": incident.ddos_data,
             "unauthorized_access": incident.unauthorized_access_data,
+            "bec": incident.bec_data,
+            "web_application_attack": incident.web_application_attack_data,
+            "data_exfiltration": incident.data_exfiltration_data,
+            "supply_chain_attack": incident.supply_chain_attack_data,
+            "cloud_account_compromise": incident.cloud_account_compromise_data,
+            "api_security_breach": incident.api_security_breach_data,
+            "credential_stuffing": incident.credential_stuffing_data,
+            "zero_day_exploit": incident.zero_day_exploit_data,
+            "container_compromise": incident.container_compromise_data,
+            "iot_device_compromise": incident.iot_device_compromise_data,
+            "backup_system_compromise": incident.backup_system_compromise_data,
+            "dns_hijacking": incident.dns_hijacking_data,
+            "saas_application_compromise": incident.saas_application_compromise_data,
+            "mobile_device_compromise": incident.mobile_device_compromise_data,
+            "regulatory_compliance_incident": incident.regulatory_compliance_incident_data,
         }
         return type_mapping.get(incident.incident_type.value)
 

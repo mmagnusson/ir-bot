@@ -1,0 +1,517 @@
+# SaaS Application Compromise Incident Response Playbook
+# Handles Microsoft 365, Salesforce, Slack, Google Workspace, and other SaaS compromises
+# Covers OAuth abuse, consent phishing, admin account takeover, and third-party app attacks
+
+incident_type: saas_application_compromise
+
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads SaaS compromise response"
+    required: true
+
+  saas_administrator:
+    name: "SaaS Administrator"
+    description: "Manages SaaS platform configuration and security"
+    required: true
+
+  security_analyst:
+    name: "Security Analyst"
+    description: "Investigates OAuth abuse and malicious apps"
+    required: true
+
+  identity_access_manager:
+    name: "Identity & Access Manager"
+    description: "Manages user identities and access controls"
+    required: true
+
+  data_protection_officer:
+    name: "Data Protection Officer"
+    description: "Assesses data exposure and regulatory requirements"
+    required: false
+
+phases:
+  intake:
+    description: "Initial SaaS compromise assessment"
+    primary_role: "incident_commander"
+    handoff_to: "saas_administrator"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      checklist_completion_threshold: 100
+
+    required_fields:
+      - saas_platform
+      - compromise_type
+      - affected_accounts
+      - time_of_detection
+
+    checklist:
+      - id: "intake_001"
+        step: "Verify SaaS compromise classification"
+        description: "Confirm SaaS platform is compromised"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_rationale"
+            prompt: "Evidence of SaaS compromise"
+
+      - id: "intake_002"
+        step: "Identify affected SaaS platform"
+        description: "Determine which SaaS application is compromised"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "saas_platform_details"
+            prompt: "SaaS platform (M365, Salesforce, Slack, Google Workspace, etc.)"
+
+      - id: "intake_003"
+        step: "Classify compromise type"
+        description: "Identify attack method used"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "compromise_type_details"
+            prompt: "Type (OAuth abuse, admin takeover, consent phishing, third-party app)"
+
+      - id: "intake_004"
+        step: "Quantify affected accounts"
+        description: "Determine number of user accounts impacted"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "number"
+            name: "affected_accounts_count"
+            prompt: "Number of affected user accounts"
+
+  investigation:
+    description: "Analyze SaaS compromise scope and impact"
+    primary_role: "saas_administrator"
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    sla:
+      target_completion_hours: 3
+      escalation_threshold_hours: 4
+
+    checklist:
+      - id: "inv_001"
+        step: "Review OAuth consent grants"
+        description: "Check for malicious third-party app permissions"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 45
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "malicious_oauth_apps_found"
+            prompt: "Were malicious OAuth apps found?"
+          - type: "text"
+            name: "malicious_app_details"
+            prompt: "Details of malicious applications"
+            optional: true
+
+      - id: "inv_002"
+        step: "Analyze audit logs"
+        description: "Review SaaS platform audit logs for unauthorized activity"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 60
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "suspicious_activities"
+            prompt: "Suspicious activities found in audit logs"
+
+      - id: "inv_003"
+        step: "Check for admin account compromise"
+        description: "Verify if admin/privileged accounts were compromised"
+        assigned_to: "identity_access_manager"
+        estimated_time_minutes: 30
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "admin_account_compromised"
+            prompt: "Was an admin account compromised?"
+          - type: "text"
+            name: "compromised_admin_accounts"
+            prompt: "List of compromised admin accounts"
+            optional: true
+
+      - id: "inv_004"
+        step: "Assess data exfiltration"
+        description: "Determine if data was accessed or exported"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 50
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "data_exfiltration_detected"
+            prompt: "Was data exfiltration detected?"
+          - type: "text"
+            name: "exfiltrated_data_types"
+            prompt: "Types of data accessed/exported"
+            optional: true
+
+      - id: "inv_005"
+        step: "Check MFA bypass methods"
+        description: "Investigate how MFA was bypassed if enabled"
+        assigned_to: "identity_access_manager"
+        estimated_time_minutes: 40
+        evidence_required:
+          - type: "boolean"
+            name: "mfa_bypassed"
+            prompt: "Was MFA bypassed?"
+          - type: "text"
+            name: "mfa_bypass_method"
+            prompt: "How was MFA bypassed?"
+            optional: true
+
+      - id: "inv_006"
+        step: "Review mailbox rules and forwarding"
+        description: "Check for malicious mail rules (if applicable)"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 30
+        conditions:
+          triggers_when:
+            saas_platform: "Microsoft 365"
+        evidence_required:
+          - type: "boolean"
+            name: "malicious_mail_rules_found"
+            prompt: "Were malicious mail rules found?"
+
+      - id: "inv_007"
+        step: "Check for suspicious API usage"
+        description: "Review API access patterns for anomalies"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 35
+        evidence_required:
+          - type: "boolean"
+            name: "suspicious_api_usage"
+            prompt: "Was suspicious API usage detected?"
+
+      - id: "inv_008"
+        step: "Identify attack origin"
+        description: "Determine source IPs and geographic locations"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 25
+        evidence_required:
+          - type: "text"
+            name: "attack_origin_details"
+            prompt: "Source IPs and locations"
+
+  containment:
+    description: "Stop SaaS attack and prevent further damage"
+    primary_role: "incident_commander"
+    supporting_roles: ["saas_administrator", "identity_access_manager"]
+    handoff_to: "saas_administrator"
+
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
+
+    sla:
+      target_completion_hours: 1
+      escalation_threshold_hours: 2
+
+    checklist:
+      - id: "cont_001"
+        step: "Revoke malicious OAuth app consents"
+        description: "Remove permissions for all malicious third-party apps"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 20
+        conditions:
+          triggers_when:
+            malicious_oauth_apps_found: "yes"
+        critical: true
+        evidence_required:
+          - type: "number"
+            name: "oauth_apps_revoked"
+            prompt: "Number of malicious apps revoked"
+
+      - id: "cont_002"
+        step: "Reset compromised account passwords"
+        description: "Force password reset for all affected accounts"
+        assigned_to: "identity_access_manager"
+        estimated_time_minutes: 30
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "passwords_reset"
+            prompt: "Compromised account passwords reset?"
+
+      - id: "cont_003"
+        step: "Revoke all active sessions"
+        description: "Sign out all users from compromised accounts"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "sessions_revoked"
+            prompt: "All sessions revoked?"
+
+      - id: "cont_004"
+        step: "Lock compromised admin accounts"
+        description: "Disable admin accounts until investigation complete"
+        assigned_to: "identity_access_manager"
+        estimated_time_minutes: 10
+        conditions:
+          triggers_when:
+            admin_account_compromised: "yes"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "admin_accounts_locked"
+            prompt: "Admin accounts locked?"
+
+      - id: "cont_005"
+        step: "Remove malicious mail rules"
+        description: "Delete forwarding rules and malicious filters"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 25
+        conditions:
+          triggers_when:
+            malicious_mail_rules_found: "yes"
+        evidence_required:
+          - type: "number"
+            name: "mail_rules_removed"
+            prompt: "Number of malicious rules removed"
+
+      - id: "cont_006"
+        step: "Block attacker IP addresses"
+        description: "Add source IPs to conditional access block list"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 15
+        evidence_required:
+          - type: "text"
+            name: "blocked_ips"
+            prompt: "IP addresses blocked"
+
+      - id: "cont_007"
+        step: "Enable enhanced logging"
+        description: "Increase audit logging detail temporarily"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 10
+        evidence_required:
+          - type: "boolean"
+            name: "enhanced_logging_enabled"
+            prompt: "Enhanced logging enabled?"
+
+  remediation:
+    description: "Harden SaaS security long-term"
+    primary_role: "saas_administrator"
+    supporting_roles: ["security_analyst", "identity_access_manager"]
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    checklist:
+      - id: "rem_001"
+        step: "Enforce MFA organization-wide"
+        description: "Require MFA for all users without exceptions"
+        assigned_to: "identity_access_manager"
+        estimated_time_minutes: 90
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "mfa_enforced"
+            prompt: "MFA enforced for all users?"
+
+      - id: "rem_002"
+        step: "Implement conditional access policies"
+        description: "Deploy location-based and device-based access controls"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 120
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "conditional_access_policies"
+            prompt: "Conditional access policies implemented"
+
+      - id: "rem_003"
+        step: "Review and restrict OAuth app permissions"
+        description: "Audit all third-party apps and remove unnecessary permissions"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "number"
+            name: "oauth_apps_reviewed"
+            prompt: "Number of OAuth apps reviewed"
+          - type: "number"
+            name: "oauth_apps_removed"
+            prompt: "Number of apps removed"
+
+      - id: "rem_004"
+        step: "Implement app consent policies"
+        description: "Require admin approval for third-party app installations"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 45
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "app_consent_policy_enabled"
+            prompt: "Admin consent required for apps?"
+
+      - id: "rem_005"
+        step: "Enable cloud app security (CASB)"
+        description: "Deploy CASB solution for SaaS monitoring"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "text"
+            name: "casb_solution"
+            prompt: "CASB solution deployed"
+
+      - id: "rem_006"
+        step: "Configure privileged access management"
+        description: "Implement just-in-time admin access"
+        assigned_to: "identity_access_manager"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "pam_solution"
+            prompt: "Privileged access management configured"
+
+      - id: "rem_007"
+        step: "Implement data loss prevention (DLP)"
+        description: "Deploy DLP policies for sensitive data"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "boolean"
+            name: "dlp_policies_deployed"
+            prompt: "DLP policies deployed?"
+
+      - id: "rem_008"
+        step: "Create security awareness training"
+        description: "Train users on consent phishing and OAuth risks"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "boolean"
+            name: "training_created"
+            prompt: "Security awareness training created?"
+
+      - id: "rem_009"
+        step: "Implement continuous access evaluation"
+        description: "Enable real-time session revocation on risk events"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "boolean"
+            name: "continuous_access_enabled"
+            prompt: "Continuous access evaluation enabled?"
+
+  closure:
+    description: "Final documentation and improvements"
+    primary_role: "incident_commander"
+
+    checklist:
+      - id: "close_001"
+        step: "Document SaaS compromise details"
+        description: "Create comprehensive technical report"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "technical_report"
+            prompt: "Complete technical documentation"
+
+      - id: "close_002"
+        step: "Create incident timeline"
+        description: "Document attack and response timeline"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete timeline"
+
+      - id: "close_003"
+        step: "Update SaaS security policies"
+        description: "Strengthen SaaS usage and security policies"
+        assigned_to: "saas_administrator"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "policy_updates"
+            prompt: "SaaS security policy updates"
+
+      - id: "close_004"
+        step: "Notify affected users"
+        description: "Inform users of compromise and security improvements"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "users_notified"
+            prompt: "Users notified of incident?"
+
+      - id: "close_005"
+        step: "Assess regulatory notification requirements"
+        description: "Determine if breach notification is required"
+        assigned_to: "data_protection_officer"
+        estimated_time_minutes: 45
+        conditions:
+          triggers_when:
+            data_exfiltration_detected: "yes"
+        evidence_required:
+          - type: "boolean"
+            name: "regulatory_notification_required"
+            prompt: "Is regulatory notification required?"
+
+risk_factors:
+  critical_risk:
+    - admin_account_compromised: "yes"
+    - data_exfiltration_detected: "yes"
+    - affected_accounts: ">500"
+    - mfa_enforced: "no"
+
+  high_risk:
+    - malicious_oauth_apps_found: "yes"
+    - mfa_bypassed: "yes"
+    - affected_accounts: ">100"
+
+  medium_risk:
+    - malicious_mail_rules_found: "yes"
+    - affected_accounts: "10-100"
+
+  low_risk:
+    - affected_accounts: "<10"
+    - mfa_enforced: "yes"
+
+escalation:
+  immediate:
+    criteria:
+      - "Admin account fully compromised"
+      - "Sensitive data exfiltrated"
+      - "Over 500 accounts affected"
+      - "MFA bypass confirmed"
+    notify_roles:
+      - "incident_commander"
+      - "saas_administrator"
+      - "data_protection_officer"
+    additional_roles_required:
+      - "ciso"
+      - "legal_counsel"
+      - "communications_lead"
+
+  standard:
+    criteria:
+      - "Limited OAuth app compromise"
+      - "No data exfiltration detected"
+      - "Under 100 accounts affected"
+    notify_roles:
+      - "incident_commander"
+      - "saas_administrator"

@@ -57,9 +57,8 @@ phases:
       notify_roles: ["incident_commander", "network_engineer"]
 
     required_fields:
-      - service_affected
-      - attack_detected_time
-      - impact_level
+      - affected_service
+      - attack_type
 
     checklist:
       - id: "intake_001"

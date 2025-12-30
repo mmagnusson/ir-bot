@@ -14,6 +14,21 @@ class IncidentType(str, Enum):
     INSIDER_THREAT = "insider_threat"
     DDOS = "ddos"
     UNAUTHORIZED_ACCESS = "unauthorized_access"
+    BEC = "bec"  # Business Email Compromise
+    WEB_APPLICATION_ATTACK = "web_application_attack"
+    DATA_EXFILTRATION = "data_exfiltration"
+    SUPPLY_CHAIN_ATTACK = "supply_chain_attack"
+    CLOUD_ACCOUNT_COMPROMISE = "cloud_account_compromise"
+    API_SECURITY_BREACH = "api_security_breach"
+    CREDENTIAL_STUFFING = "credential_stuffing"
+    ZERO_DAY_EXPLOIT = "zero_day_exploit"
+    CONTAINER_COMPROMISE = "container_compromise"
+    IOT_DEVICE_COMPROMISE = "iot_device_compromise"
+    BACKUP_SYSTEM_COMPROMISE = "backup_system_compromise"
+    DNS_HIJACKING = "dns_hijacking"
+    SAAS_APPLICATION_COMPROMISE = "saas_application_compromise"
+    MOBILE_DEVICE_COMPROMISE = "mobile_device_compromise"
+    REGULATORY_COMPLIANCE_INCIDENT = "regulatory_compliance_incident"
 
 
 # NEW: Playbook execution enums and models
@@ -254,6 +269,233 @@ class UnauthorizedAccessIncidentData(BaseModel):
     persistence_established: Optional[YesNoUnknown] = None
 
 
+class BECIncidentData(BaseModel):
+    """Structured data for Business Email Compromise incidents"""
+    compromised_account_email: str = Field(..., description="Email address of compromised account")
+    impersonated_executive: Optional[str] = Field(None, description="Name/title of impersonated executive")
+    fraudulent_request_type: str = Field(..., description="Type of fraudulent request (wire transfer, gift cards, etc.)")
+    target_recipient_email: str = Field(..., description="Who received the fraudulent email?")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+
+    # Investigation findings
+    financial_loss_occurred: Optional[YesNoUnknown] = None
+    transaction_amount: Optional[str] = None
+    funds_recovered: Optional[YesNoUnknown] = None
+    other_targets_identified: Optional[YesNoUnknown] = None
+
+
+class WebApplicationAttackIncidentData(BaseModel):
+    """Structured data for web application attack incidents"""
+    affected_application: str = Field(..., description="Name/URL of affected application")
+    attack_type: str = Field(..., description="Type of attack (SQLi, XSS, CSRF, etc.)")
+    attack_vector: str = Field(default="", description="How was the attack delivered?")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+
+    # Investigation findings
+    successful_exploitation: Optional[YesNoUnknown] = None
+    data_accessed: Optional[YesNoUnknown] = None
+    waf_bypassed: Optional[YesNoUnknown] = None
+    vulnerability_patched: Optional[YesNoUnknown] = None
+
+
+class DataExfiltrationIncidentData(BaseModel):
+    """Structured data for data exfiltration incidents"""
+    affected_system: str = Field(..., description="System from which data was exfiltrated")
+    data_classification: str = Field(..., description="Classification of exfiltrated data (public, internal, confidential, etc.)")
+    estimated_data_volume: str = Field(default="", description="Estimated volume of data exfiltrated")
+    exfiltration_method: str = Field(..., description="Method used for exfiltration")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+
+    # Investigation findings
+    exfiltration_destination: Optional[str] = None
+    insider_involvement: Optional[YesNoUnknown] = None
+    encryption_used: Optional[YesNoUnknown] = None
+    ongoing_exfiltration: Optional[YesNoUnknown] = None
+
+
+class SupplyChainAttackIncidentData(BaseModel):
+    """Structured data for supply chain attack incidents"""
+    affected_vendor: str = Field(..., description="Name of affected vendor/supplier")
+    compromised_component: str = Field(..., description="Compromised software/hardware component")
+    attack_vector: str = Field(..., description="How was the supply chain compromised?")
+    internal_systems_affected: YesNoUnknown = Field(default=YesNoUnknown.UNKNOWN, description="Are internal systems affected?")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+
+    # Investigation findings
+    malicious_code_identified: Optional[YesNoUnknown] = None
+    scope_determined: Optional[YesNoUnknown] = None
+    vendor_notified: Optional[YesNoUnknown] = None
+    alternative_vendor_identified: Optional[YesNoUnknown] = None
+
+
+class CloudAccountCompromiseIncidentData(BaseModel):
+    """Structured data for cloud account compromise incidents"""
+    cloud_provider: str = Field(..., description="Cloud provider (AWS, Azure, GCP, etc.)")
+    compromised_account_id: str = Field(..., description="Compromised account/subscription ID")
+    account_type: str = Field(..., description="Type of account (root, admin, service account, etc.)")
+    unauthorized_actions: str = Field(default="", description="Unauthorized actions observed")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+
+    # Investigation findings
+    resources_created: Optional[YesNoUnknown] = None
+    data_accessed: Optional[YesNoUnknown] = None
+    cryptomining_detected: Optional[YesNoUnknown] = None
+    lateral_movement: Optional[YesNoUnknown] = None
+    mfa_enabled: Optional[YesNoUnknown] = None
+
+
+class APISecurityBreachIncidentData(BaseModel):
+    """Structured data for API security breach incidents"""
+    affected_api: str = Field(..., description="API endpoint or service affected")
+    attack_type: str = Field(..., description="Type of API attack (broken auth, excessive data exposure, rate limit abuse, etc.)")
+    api_authentication_method: str = Field(default="", description="Authentication method used by API")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+
+    # Investigation findings
+    api_keys_compromised: Optional[YesNoUnknown] = None
+    data_exfiltrated: Optional[YesNoUnknown] = None
+    rate_limiting_bypassed: Optional[YesNoUnknown] = None
+    sensitive_endpoints_accessed: Optional[YesNoUnknown] = None
+
+
+class CredentialStuffingIncidentData(BaseModel):
+    """Structured data for credential stuffing attack incidents"""
+    affected_service: str = Field(..., description="Service/application targeted")
+    attack_volume: str = Field(default="", description="Number of login attempts observed")
+    source_ips_count: int = Field(default=0, description="Number of unique source IPs")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+
+    # Investigation findings
+    successful_logins: Optional[YesNoUnknown] = None
+    accounts_compromised_count: Optional[int] = None
+    mfa_prevented_access: Optional[YesNoUnknown] = None
+    bot_detection_bypassed: Optional[YesNoUnknown] = None
+
+
+class ZeroDayExploitIncidentData(BaseModel):
+    """Structured data for zero-day exploit incidents"""
+    affected_software: str = Field(..., description="Software/system with zero-day vulnerability")
+    vulnerability_type: str = Field(..., description="Type of vulnerability (RCE, privilege escalation, etc.)")
+    exploit_source: str = Field(default="", description="How was exploit discovered (vendor disclosure, active exploitation, etc.)")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+
+    # Investigation findings
+    patch_available: Optional[YesNoUnknown] = None
+    exploitation_confirmed: Optional[YesNoUnknown] = None
+    threat_actor_identified: Optional[YesNoUnknown] = None
+    workaround_implemented: Optional[YesNoUnknown] = None
+
+
+class ContainerCompromiseIncidentData(BaseModel):
+    """Structured data for container/Kubernetes compromise incidents"""
+    affected_platform: str = Field(..., description="Container platform (Docker, Kubernetes, etc.)")
+    compromised_component: str = Field(..., description="Compromised component (container, pod, node, etc.)")
+    namespace_affected: str = Field(default="", description="Kubernetes namespace if applicable")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+
+    # Investigation findings
+    container_escape_detected: Optional[YesNoUnknown] = None
+    secrets_exposed: Optional[YesNoUnknown] = None
+    malicious_image_deployed: Optional[YesNoUnknown] = None
+    lateral_movement_to_nodes: Optional[YesNoUnknown] = None
+
+
+class IoTDeviceCompromiseIncidentData(BaseModel):
+    """Structured data for IoT device compromise incidents"""
+    device_type: str = Field(..., description="Type of IoT device (camera, sensor, smart device, etc.)")
+    device_count: int = Field(..., description="Number of devices compromised")
+    compromise_method: str = Field(..., description="How devices were compromised")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+
+    # Investigation findings
+    botnet_activity_detected: Optional[YesNoUnknown] = None
+    default_credentials_used: Optional[YesNoUnknown] = None
+    firmware_backdoor: Optional[YesNoUnknown] = None
+    network_segmentation_breached: Optional[YesNoUnknown] = None
+
+
+class BackupSystemCompromiseIncidentData(BaseModel):
+    """Structured data for backup system compromise incidents"""
+    backup_system_type: str = Field(..., description="Type of backup system (cloud, tape, disk, hybrid, etc.)")
+    backup_scope: str = Field(..., description="What's backed up (files, databases, VMs, entire systems)")
+    compromise_method: str = Field(..., description="How were backups compromised")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+
+    # Investigation findings
+    backup_integrity_compromised: Optional[YesNoUnknown] = None
+    offline_backups_available: Optional[YesNoUnknown] = None
+    retention_period_affected: Optional[str] = None  # e.g., "30 days", "90 days"
+    ransom_demand_present: Optional[YesNoUnknown] = None
+    immutable_backups_compromised: Optional[YesNoUnknown] = None
+    backup_encryption_status: Optional[str] = None  # "encrypted", "not_encrypted", "ransomware_encrypted"
+
+
+class DNSHijackingIncidentData(BaseModel):
+    """Structured data for DNS hijacking incidents"""
+    affected_domain: str = Field(..., description="Domain name(s) affected by hijacking")
+    hijack_type: str = Field(..., description="Type of hijack (registrar takeover, DNS poisoning, subdomain takeover, cache poisoning)")
+    dns_provider: str = Field(..., description="DNS hosting provider (Route53, Cloudflare, etc.)")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+
+    # Investigation findings
+    registrar_account_compromised: Optional[YesNoUnknown] = None
+    dns_records_modified: Optional[YesNoUnknown] = None
+    malicious_nameservers: Optional[str] = None  # List of malicious NS records
+    certificate_issued: Optional[YesNoUnknown] = None  # For HTTPS hijacking
+    email_routing_affected: Optional[YesNoUnknown] = None
+    dnssec_enabled: Optional[YesNoUnknown] = None
+
+
+class SaaSApplicationCompromiseIncidentData(BaseModel):
+    """Structured data for SaaS application compromise incidents"""
+    saas_platform: str = Field(..., description="SaaS platform (Microsoft 365, Salesforce, Slack, Google Workspace, etc.)")
+    compromise_type: str = Field(..., description="Type of compromise (OAuth abuse, admin takeover, consent phishing, etc.)")
+    affected_accounts: int = Field(..., description="Number of user accounts affected")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+
+    # Investigation findings
+    oauth_token_abuse: Optional[YesNoUnknown] = None
+    admin_account_compromised: Optional[YesNoUnknown] = None
+    data_exfiltration_detected: Optional[YesNoUnknown] = None
+    third_party_app_involved: Optional[YesNoUnknown] = None
+    mfa_bypassed: Optional[YesNoUnknown] = None
+    malicious_app_permissions: Optional[str] = None  # Permissions granted to malicious app
+
+
+class MobileDeviceCompromiseIncidentData(BaseModel):
+    """Structured data for mobile device compromise incidents"""
+    device_type: str = Field(..., description="Type of device (iPhone, Android, iPad, etc.)")
+    device_ownership: str = Field(..., description="Ownership (corporate, BYOD, contractor)")
+    compromise_method: str = Field(..., description="How device was compromised")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+
+    # Investigation findings
+    mobile_malware_detected: Optional[YesNoUnknown] = None
+    mdm_bypassed: Optional[YesNoUnknown] = None
+    device_jailbroken_rooted: Optional[YesNoUnknown] = None
+    corporate_data_accessed: Optional[YesNoUnknown] = None
+    sim_swap_detected: Optional[YesNoUnknown] = None
+    device_location_known: Optional[YesNoUnknown] = None
+
+
+class RegulatoryComplianceIncidentData(BaseModel):
+    """Structured data for regulatory compliance incidents (GDPR, HIPAA, PCI-DSS, etc.)"""
+    regulation_type: str = Field(..., description="Regulation violated (GDPR, HIPAA, PCI-DSS, SOX, etc.)")
+    affected_data_type: str = Field(..., description="Type of data affected (PII, PHI, payment card data, etc.)")
+    affected_records_count: int = Field(..., description="Number of records/individuals affected")
+    time_of_detection: datetime = Field(default_factory=datetime.utcnow, description="When was this detected?")
+    
+    # Investigation findings
+    breach_notification_required: Optional[YesNoUnknown] = None
+    regulatory_authority_notified: Optional[YesNoUnknown] = None
+    affected_individuals_notified: Optional[YesNoUnknown] = None
+    data_encryption_enabled: Optional[YesNoUnknown] = None
+    third_party_involved: Optional[YesNoUnknown] = None
+    compliance_gap_identified: Optional[str] = None
+    regulatory_authority: Optional[str] = None
+    notification_deadline: Optional[datetime] = None
+
+
 class IncidentState(BaseModel):
     """Main incident object that tracks the entire lifecycle"""
     incident_id: str = Field(..., description="Unique incident identifier")
@@ -271,6 +513,21 @@ class IncidentState(BaseModel):
     insider_threat_data: Optional[InsiderThreatIncidentData] = None
     ddos_data: Optional[DDoSIncidentData] = None
     unauthorized_access_data: Optional[UnauthorizedAccessIncidentData] = None
+    bec_data: Optional[BECIncidentData] = None
+    web_application_attack_data: Optional[WebApplicationAttackIncidentData] = None
+    data_exfiltration_data: Optional[DataExfiltrationIncidentData] = None
+    supply_chain_attack_data: Optional[SupplyChainAttackIncidentData] = None
+    cloud_account_compromise_data: Optional[CloudAccountCompromiseIncidentData] = None
+    api_security_breach_data: Optional[APISecurityBreachIncidentData] = None
+    credential_stuffing_data: Optional[CredentialStuffingIncidentData] = None
+    zero_day_exploit_data: Optional[ZeroDayExploitIncidentData] = None
+    container_compromise_data: Optional[ContainerCompromiseIncidentData] = None
+    iot_device_compromise_data: Optional[IoTDeviceCompromiseIncidentData] = None
+    backup_system_compromise_data: Optional[BackupSystemCompromiseIncidentData] = None
+    dns_hijacking_data: Optional[DNSHijackingIncidentData] = None
+    saas_application_compromise_data: Optional[SaaSApplicationCompromiseIncidentData] = None
+    mobile_device_compromise_data: Optional[MobileDeviceCompromiseIncidentData] = None
+    regulatory_compliance_incident_data: Optional[RegulatoryComplianceIncidentData] = None
 
     # Actions taken
     actions_taken: List[str] = Field(default_factory=list)
@@ -295,6 +552,21 @@ class IncidentCreateRequest(BaseModel):
     insider_threat_data: Optional[InsiderThreatIncidentData] = None
     ddos_data: Optional[DDoSIncidentData] = None
     unauthorized_access_data: Optional[UnauthorizedAccessIncidentData] = None
+    bec_data: Optional[BECIncidentData] = None
+    web_application_attack_data: Optional[WebApplicationAttackIncidentData] = None
+    data_exfiltration_data: Optional[DataExfiltrationIncidentData] = None
+    supply_chain_attack_data: Optional[SupplyChainAttackIncidentData] = None
+    cloud_account_compromise_data: Optional[CloudAccountCompromiseIncidentData] = None
+    api_security_breach_data: Optional[APISecurityBreachIncidentData] = None
+    credential_stuffing_data: Optional[CredentialStuffingIncidentData] = None
+    zero_day_exploit_data: Optional[ZeroDayExploitIncidentData] = None
+    container_compromise_data: Optional[ContainerCompromiseIncidentData] = None
+    iot_device_compromise_data: Optional[IoTDeviceCompromiseIncidentData] = None
+    backup_system_compromise_data: Optional[BackupSystemCompromiseIncidentData] = None
+    dns_hijacking_data: Optional[DNSHijackingIncidentData] = None
+    saas_application_compromise_data: Optional[SaaSApplicationCompromiseIncidentData] = None
+    mobile_device_compromise_data: Optional[MobileDeviceCompromiseIncidentData] = None
+    regulatory_compliance_incident_data: Optional[RegulatoryComplianceIncidentData] = None
 
 
 class IncidentUpdateRequest(BaseModel):
@@ -307,6 +579,21 @@ class IncidentUpdateRequest(BaseModel):
     insider_threat_data: Optional[InsiderThreatIncidentData] = None
     ddos_data: Optional[DDoSIncidentData] = None
     unauthorized_access_data: Optional[UnauthorizedAccessIncidentData] = None
+    bec_data: Optional[BECIncidentData] = None
+    web_application_attack_data: Optional[WebApplicationAttackIncidentData] = None
+    data_exfiltration_data: Optional[DataExfiltrationIncidentData] = None
+    supply_chain_attack_data: Optional[SupplyChainAttackIncidentData] = None
+    cloud_account_compromise_data: Optional[CloudAccountCompromiseIncidentData] = None
+    api_security_breach_data: Optional[APISecurityBreachIncidentData] = None
+    credential_stuffing_data: Optional[CredentialStuffingIncidentData] = None
+    zero_day_exploit_data: Optional[ZeroDayExploitIncidentData] = None
+    container_compromise_data: Optional[ContainerCompromiseIncidentData] = None
+    iot_device_compromise_data: Optional[IoTDeviceCompromiseIncidentData] = None
+    backup_system_compromise_data: Optional[BackupSystemCompromiseIncidentData] = None
+    dns_hijacking_data: Optional[DNSHijackingIncidentData] = None
+    saas_application_compromise_data: Optional[SaaSApplicationCompromiseIncidentData] = None
+    mobile_device_compromise_data: Optional[MobileDeviceCompromiseIncidentData] = None
+    regulatory_compliance_incident_data: Optional[RegulatoryComplianceIncidentData] = None
     actions_taken: Optional[List[str]] = None
     status: Optional[str] = None
 

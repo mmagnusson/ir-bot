@@ -54,9 +54,8 @@ phases:
       checklist_completion_threshold: 100
 
     required_fields:
-      - suspected_user
-      - suspicious_behavior
-      - threat_type
+      - suspect_user_email
+      - suspicious_activity
       - time_of_detection
 
     checklist:
@@ -83,7 +82,7 @@ phases:
         critical: true
         evidence_required:
           - type: "text"
-            name: "suspected_user_identity"
+            name: "suspect_user_email_identity"
             prompt: "Suspected insider username/email"
           - type: "text"
             name: "user_role"

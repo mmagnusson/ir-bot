@@ -1,0 +1,530 @@
+# Business Email Compromise (BEC) Incident Response Playbook
+# Handles CEO fraud, wire transfer fraud, payroll diversion, and executive impersonation
+
+incident_type: bec
+
+# Role definitions for this incident type
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads response, coordinates with finance and legal"
+    required: true
+
+  forensics_analyst:
+    name: "Forensics Analyst"
+    description: "Email forensics and account investigation"
+    required: true
+
+  finance_liaison:
+    name: "Finance Department Liaison"
+    description: "Works with banking institutions on fund recovery"
+    required: true
+    escalation_triggers: ["financial_loss_occurred"]
+
+  legal_counsel:
+    name: "Legal Counsel"
+    description: "Handles law enforcement and regulatory notifications"
+    required: false
+    escalation_triggers: ["financial_loss_occurred", "executive_impersonation"]
+
+  communications_lead:
+    name: "Communications Lead"
+    description: "Internal communications and user awareness"
+    required: true
+
+phases:
+  intake:
+    description: "Initial BEC incident assessment"
+    primary_role: "incident_commander"
+    handoff_to: "forensics_analyst"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      checklist_completion_threshold: 100
+
+    required_fields:
+      - compromised_account_email
+      - fraudulent_request_type
+      - target_recipient_email
+      - time_of_detection
+
+    checklist:
+      - id: "intake_001"
+        step: "Verify BEC incident classification"
+        description: "Confirm this is business email compromise, not simple phishing"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_rationale"
+            prompt: "Why is this classified as BEC?"
+
+      - id: "intake_002"
+        step: "Determine BEC attack type"
+        description: "Identify if CEO fraud, vendor fraud, payroll diversion, or account compromise"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 10
+        dependencies: ["intake_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "attack_type"
+            prompt: "BEC attack type (CEO fraud, vendor fraud, payroll diversion, etc.)"
+
+      - id: "intake_003"
+        step: "Assess financial transaction status"
+        description: "Determine if funds were transferred and current status"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 15
+        dependencies: ["intake_002"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "transaction_executed"
+            prompt: "Was the fraudulent transaction executed?"
+          - type: "text"
+            name: "transaction_amount"
+            prompt: "Transaction amount (if known)"
+            optional: true
+          - type: "timestamp"
+            name: "transaction_time"
+            prompt: "When was the transaction executed?"
+            optional: true
+
+      - id: "intake_004"
+        step: "Engage finance department immediately"
+        description: "Contact finance to freeze/reverse transactions if possible"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 10
+        dependencies: ["intake_003"]
+        conditions:
+          triggers_when:
+            financial_loss_occurred: "yes"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "finance_notified"
+            prompt: "Finance department notified?"
+          - type: "timestamp"
+            name: "finance_notification_time"
+            prompt: "When was finance notified?"
+
+  investigation:
+    description: "Email forensics and impact assessment"
+    primary_role: "forensics_analyst"
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    sla:
+      target_completion_hours: 2
+      escalation_threshold_hours: 3
+      notify_roles: ["incident_commander", "finance_liaison"]
+
+    checklist:
+      - id: "inv_001"
+        step: "Analyze fraudulent email headers"
+        description: "Examine email for spoofing, account compromise, or lookalike domains"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 20
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "sender_analysis"
+            prompt: "Sender email analysis (spoofed, compromised account, lookalike domain)"
+          - type: "text"
+            name: "email_headers"
+            prompt: "Full email headers"
+
+      - id: "inv_002"
+        step: "Check for account compromise"
+        description: "Review authentication logs for compromised account"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 25
+        dependencies: ["inv_001"]
+        evidence_required:
+          - type: "boolean"
+            name: "account_compromised"
+            prompt: "Was an internal account compromised?"
+          - type: "text"
+            name: "compromise_details"
+            prompt: "Details of account compromise"
+            optional: true
+
+      - id: "inv_003"
+        step: "Search for similar BEC attempts"
+        description: "Look for other emails in this campaign targeting the organization"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 30
+        parallel_group: "scope_assessment"
+        evidence_required:
+          - type: "boolean"
+            name: "similar_attempts_found"
+            prompt: "Were similar BEC attempts found?"
+          - type: "number"
+            name: "similar_email_count"
+            prompt: "Number of similar emails found"
+            optional: true
+          - type: "text"
+            name: "other_targets"
+            prompt: "List of other targeted employees"
+            optional: true
+
+      - id: "inv_004"
+        step: "Review email rules and forwarding"
+        description: "Check for malicious email rules, forwarding, or auto-replies"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 15
+        parallel_group: "scope_assessment"
+        conditions:
+          triggers_when:
+            account_compromised: true
+        evidence_required:
+          - type: "boolean"
+            name: "malicious_rules_found"
+            prompt: "Were malicious email rules found?"
+          - type: "text"
+            name: "rule_details"
+            prompt: "Details of malicious rules"
+            optional: true
+
+      - id: "inv_005"
+        step: "Trace financial transaction"
+        description: "Work with finance to trace transaction details and destination"
+        assigned_to: "finance_liaison"
+        estimated_time_minutes: 45
+        conditions:
+          triggers_when:
+            financial_loss_occurred: "yes"
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "destination_account"
+            prompt: "Destination account details"
+          - type: "text"
+            name: "destination_bank"
+            prompt: "Destination bank information"
+          - type: "text"
+            name: "transaction_reference"
+            prompt: "Transaction reference number"
+
+      - id: "inv_006"
+        step: "Assess executive impersonation scope"
+        description: "Determine which executive was impersonated and potential impact"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 20
+        evidence_required:
+          - type: "text"
+            name: "impersonated_executive"
+            prompt: "Name and title of impersonated executive"
+          - type: "text"
+            name: "impersonation_details"
+            prompt: "How was the executive impersonated?"
+
+  containment:
+    description: "Stop attack and prevent further loss"
+    primary_role: "incident_commander"
+    supporting_roles: ["finance_liaison", "forensics_analyst", "legal_counsel"]
+    handoff_to: "finance_liaison"
+
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
+
+    sla:
+      target_completion_hours: 1
+      escalation_threshold_hours: 2
+      notify_roles: ["incident_commander", "finance_liaison", "legal_counsel"]
+
+    checklist:
+      - id: "cont_001"
+        step: "Initiate wire transfer recall"
+        description: "Contact receiving bank to recall fraudulent transfer"
+        assigned_to: "finance_liaison"
+        estimated_time_minutes: 30
+        conditions:
+          triggers_when:
+            financial_loss_occurred: "yes"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "recall_initiated"
+            prompt: "Wire recall initiated?"
+          - type: "timestamp"
+            name: "recall_time"
+            prompt: "When was recall initiated?"
+          - type: "text"
+            name: "receiving_bank_contact"
+            prompt: "Receiving bank contact information"
+
+      - id: "cont_002"
+        step: "Reset compromised account credentials"
+        description: "Force password reset and revoke all sessions"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 10
+        conditions:
+          triggers_when:
+            account_compromised: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "password_reset"
+            prompt: "Password reset completed?"
+          - type: "boolean"
+            name: "sessions_revoked"
+            prompt: "All sessions revoked?"
+
+      - id: "cont_003"
+        step: "Remove malicious email rules"
+        description: "Delete any attacker-created email rules or forwarding"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 10
+        conditions:
+          triggers_when:
+            malicious_rules_found: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "rules_removed"
+            prompt: "Malicious rules removed?"
+          - type: "number"
+            name: "rules_removed_count"
+            prompt: "Number of rules removed"
+
+      - id: "cont_004"
+        step: "Block sender domain/email"
+        description: "Add attacker domain to email gateway blocklist"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 5
+        evidence_required:
+          - type: "text"
+            name: "blocked_domains"
+            prompt: "Domains/emails added to blocklist"
+
+      - id: "cont_005"
+        step: "Quarantine related BEC emails"
+        description: "Search and quarantine all related fraudulent emails"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 20
+        evidence_required:
+          - type: "number"
+            name: "emails_quarantined"
+            prompt: "Number of emails quarantined"
+
+      - id: "cont_006"
+        step: "Notify law enforcement"
+        description: "File report with FBI IC3 and local law enforcement"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 45
+        conditions:
+          triggers_when:
+            financial_loss_occurred: "yes"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "law_enforcement_notified"
+            prompt: "Law enforcement notified?"
+          - type: "text"
+            name: "case_number"
+            prompt: "Case/report number"
+            optional: true
+
+      - id: "cont_007"
+        step: "Alert finance team organization-wide"
+        description: "Send urgent alert to all finance personnel about BEC threat"
+        assigned_to: "communications_lead"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "finance_alert_sent"
+            prompt: "Finance team alert sent?"
+          - type: "timestamp"
+            name: "alert_time"
+            prompt: "When was alert sent?"
+
+  remediation:
+    description: "Fund recovery and security improvements"
+    primary_role: "finance_liaison"
+    supporting_roles: ["legal_counsel", "forensics_analyst"]
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 80
+
+    checklist:
+      - id: "rem_001"
+        step: "Continue fund recovery efforts"
+        description: "Work with banks and law enforcement on fund recovery"
+        assigned_to: "finance_liaison"
+        estimated_time_minutes: 120
+        conditions:
+          triggers_when:
+            financial_loss_occurred: "yes"
+        evidence_required:
+          - type: "text"
+            name: "recovery_status"
+            prompt: "Current status of fund recovery efforts"
+          - type: "text"
+            name: "funds_recovered_amount"
+            prompt: "Amount recovered (if any)"
+            optional: true
+
+      - id: "rem_002"
+        step: "Implement email authentication"
+        description: "Deploy SPF, DKIM, and DMARC if not already in place"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "boolean"
+            name: "email_auth_implemented"
+            prompt: "Email authentication configured?"
+          - type: "text"
+            name: "auth_details"
+            prompt: "SPF/DKIM/DMARC configuration details"
+
+      - id: "rem_003"
+        step: "Enable external email warnings"
+        description: "Configure email gateway to tag external emails"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "external_tags_enabled"
+            prompt: "External email tagging enabled?"
+
+      - id: "rem_004"
+        step: "Update wire transfer procedures"
+        description: "Implement multi-factor verification for wire transfers"
+        assigned_to: "finance_liaison"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "updated_procedures"
+            prompt: "Description of updated wire transfer procedures"
+
+      - id: "rem_005"
+        step: "Conduct BEC awareness training"
+        description: "Train finance and executives on BEC indicators"
+        assigned_to: "communications_lead"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "boolean"
+            name: "training_scheduled"
+            prompt: "BEC training scheduled?"
+          - type: "text"
+            name: "training_participants"
+            prompt: "Who will attend training?"
+
+      - id: "rem_006"
+        step: "Review and strengthen executive email security"
+        description: "Implement advanced protection for executive accounts"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "executive_protections"
+            prompt: "List of protections implemented for executive accounts"
+
+  closure:
+    description: "Final documentation and lessons learned"
+    primary_role: "incident_commander"
+
+    checklist:
+      - id: "close_001"
+        step: "Document financial impact"
+        description: "Record total financial loss and any recovered funds"
+        assigned_to: "finance_liaison"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "financial_summary"
+            prompt: "Summary of financial impact and recovery"
+
+      - id: "close_002"
+        step: "Create incident timeline"
+        description: "Document chronological sequence from initial email to resolution"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete incident timeline"
+
+      - id: "close_003"
+        step: "Compile evidence package"
+        description: "Gather all evidence for insurance claims and legal proceedings"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "evidence_inventory"
+            prompt: "List of all collected evidence"
+
+      - id: "close_004"
+        step: "Update BEC response procedures"
+        description: "Document lessons learned and improve playbook"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        dependencies: ["close_001", "close_002", "close_003"]
+        evidence_required:
+          - type: "text"
+            name: "lessons_learned"
+            prompt: "Key lessons learned from this incident"
+          - type: "text"
+            name: "recommended_improvements"
+            prompt: "Recommended improvements to procedures"
+
+# Risk Assessment Criteria
+risk_factors:
+  critical_risk:
+    - financial_loss_occurred: "yes"
+    - transaction_amount: ">$100000"
+
+  high_risk:
+    - financial_loss_occurred: "yes"
+    - account_compromised: true
+    - other_targets_identified: "yes"
+
+  medium_risk:
+    - target_recipient_email: "finance"
+    - fraudulent_request_type: "wire_transfer"
+
+  low_risk:
+    - financial_loss_occurred: "no"
+
+# Escalation Criteria
+escalation:
+  immediate:
+    criteria:
+      - "Wire transfer executed exceeding $50,000"
+      - "Executive account compromised"
+      - "Multiple fraudulent transactions detected"
+    notify_roles:
+      - "incident_commander"
+      - "finance_liaison"
+      - "legal_counsel"
+    additional_roles_required:
+      - "cfo"
+      - "ciso"
+      - "ceo"
+
+  standard:
+    criteria:
+      - "Wire transfer attempted but not executed"
+      - "Multiple employees targeted"
+      - "Vendor payment fraud"
+    notify_roles:
+      - "incident_commander"
+      - "finance_liaison"
+
+  low_priority:
+    criteria:
+      - "BEC attempt caught before any action taken"
+      - "Obvious impersonation email reported immediately"
+    notify_roles:
+      - "incident_commander"

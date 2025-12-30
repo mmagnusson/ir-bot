@@ -1,0 +1,378 @@
+# Container/Kubernetes Compromise Incident Response Playbook
+# Handles container escapes, malicious images, and Kubernetes cluster compromises
+
+incident_type: container_compromise
+
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads container security response"
+    required: true
+
+  container_security_analyst:
+    name: "Container Security Analyst"
+    description: "Investigates container and orchestration compromises"
+    required: true
+
+  kubernetes_admin:
+    name: "Kubernetes Administrator"
+    description: "Manages cluster security and remediation"
+    required: true
+
+  devops_engineer:
+    name: "DevOps Engineer"
+    description: "Rebuilds secure images and pipelines"
+    required: true
+
+phases:
+  intake:
+    description: "Initial container compromise assessment"
+    primary_role: "incident_commander"
+    handoff_to: "container_security_analyst"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      checklist_completion_threshold: 100
+
+    required_fields:
+      - affected_platform
+      - compromised_component
+      - time_of_detection
+
+    checklist:
+      - id: "intake_001"
+        step: "Verify container compromise classification"
+        description: "Confirm container or Kubernetes compromise"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_rationale"
+            prompt: "Evidence of container compromise"
+
+      - id: "intake_002"
+        step: "Identify affected component"
+        description: "Determine what was compromised (pod, container, node)"
+        assigned_to: "container_security_analyst"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "component_type"
+            prompt: "Type of component (container, pod, node, control plane)"
+          - type: "text"
+            name: "component_identifiers"
+            prompt: "Container/pod/node IDs"
+
+      - id: "intake_003"
+        step: "Check for container escape"
+        description: "Assess if container isolation was breached"
+        assigned_to: "container_security_analyst"
+        estimated_time_minutes: 20
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "escape_suspected"
+            prompt: "Is container escape suspected?"
+
+      - id: "intake_004"
+        step: "Assess cluster scope"
+        description: "Determine if single container or cluster-wide"
+        assigned_to: "kubernetes_admin"
+        estimated_time_minutes: 15
+        evidence_required:
+          - type: "text"
+            name: "compromise_scope"
+            prompt: "Scope (single container, namespace, cluster-wide)"
+
+  investigation:
+    description: "Analyze container compromise"
+    primary_role: "container_security_analyst"
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    sla:
+      target_completion_hours: 4
+      escalation_threshold_hours: 6
+
+    checklist:
+      - id: "inv_001"
+        step: "Analyze container image"
+        description: "Scan compromised image for vulnerabilities and malware"
+        assigned_to: "container_security_analyst"
+        estimated_time_minutes: 60
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "image_analysis"
+            prompt: "Container image analysis results"
+          - type: "boolean"
+            name: "malicious_image"
+            prompt: "Is image malicious?"
+
+      - id: "inv_002"
+        step: "Review Kubernetes audit logs"
+        description: "Analyze kube-apiserver logs for suspicious activity"
+        assigned_to: "kubernetes_admin"
+        estimated_time_minutes: 45
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "suspicious_api_calls"
+            prompt: "Suspicious API calls identified"
+
+      - id: "inv_003"
+        step: "Check for secrets exposure"
+        description: "Determine if Kubernetes secrets were accessed"
+        assigned_to: "container_security_analyst"
+        estimated_time_minutes: 30
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "secrets_exposed"
+            prompt: "Were secrets exposed or stolen?"
+
+      - id: "inv_004"
+        step: "Assess privilege escalation"
+        description: "Check for privileged containers or RBAC abuse"
+        assigned_to: "kubernetes_admin"
+        estimated_time_minutes: 40
+        evidence_required:
+          - type: "boolean"
+            name: "privilege_escalation"
+            prompt: "Was privilege escalation detected?"
+
+      - id: "inv_005"
+        step: "Check for lateral movement"
+        description: "Determine if attacker moved to other pods/nodes"
+        assigned_to: "container_security_analyst"
+        estimated_time_minutes: 50
+        evidence_required:
+          - type: "boolean"
+            name: "lateral_movement"
+            prompt: "Was lateral movement detected?"
+          - type: "text"
+            name: "affected_resources"
+            prompt: "List of affected resources"
+
+      - id: "inv_006"
+        step: "Analyze malicious container behavior"
+        description: "Review container runtime logs and process activity"
+        assigned_to: "container_security_analyst"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "malicious_activities"
+            prompt: "Malicious activities observed"
+
+  containment:
+    description: "Isolate and stop container compromise"
+    primary_role: "incident_commander"
+    supporting_roles: ["kubernetes_admin", "container_security_analyst"]
+    handoff_to: "devops_engineer"
+
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
+
+    sla:
+      target_completion_hours: 2
+      escalation_threshold_hours: 3
+
+    checklist:
+      - id: "cont_001"
+        step: "Terminate malicious pods"
+        description: "Delete compromised pods/containers"
+        assigned_to: "kubernetes_admin"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "number"
+            name: "pods_terminated"
+            prompt: "Number of pods terminated"
+
+      - id: "cont_002"
+        step: "Quarantine compromised nodes"
+        description: "Cordon and drain affected nodes"
+        assigned_to: "kubernetes_admin"
+        estimated_time_minutes: 30
+        conditions:
+          triggers_when:
+            container_escape_detected: "yes"
+        critical: true
+        evidence_required:
+          - type: "number"
+            name: "nodes_cordoned"
+            prompt: "Number of nodes cordoned"
+
+      - id: "cont_003"
+        step: "Revoke exposed secrets"
+        description: "Rotate all potentially compromised secrets"
+        assigned_to: "kubernetes_admin"
+        estimated_time_minutes: 45
+        conditions:
+          triggers_when:
+            secrets_exposed: "yes"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "secrets_rotated"
+            prompt: "Secrets rotated?"
+
+      - id: "cont_004"
+        step: "Remove malicious images from registry"
+        description: "Delete compromised images from container registry"
+        assigned_to: "devops_engineer"
+        estimated_time_minutes: 20
+        evidence_required:
+          - type: "text"
+            name: "images_removed"
+            prompt: "Malicious images removed from registry"
+
+      - id: "cont_005"
+        step: "Implement network segmentation"
+        description: "Apply NetworkPolicies to limit blast radius"
+        assigned_to: "kubernetes_admin"
+        estimated_time_minutes: 40
+        evidence_required:
+          - type: "text"
+            name: "network_policies"
+            prompt: "Network policies deployed"
+
+  remediation:
+    description: "Rebuild secure containers and harden cluster"
+    primary_role: "devops_engineer"
+    supporting_roles: ["kubernetes_admin", "container_security_analyst"]
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    checklist:
+      - id: "rem_001"
+        step: "Rebuild container images from clean base"
+        description: "Create new images from verified base images"
+        assigned_to: "devops_engineer"
+        estimated_time_minutes: 120
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "images_rebuilt"
+            prompt: "Container images rebuilt?"
+
+      - id: "rem_002"
+        step: "Implement image scanning in CI/CD"
+        description: "Add vulnerability scanning to build pipeline"
+        assigned_to: "devops_engineer"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "image_scanning_solution"
+            prompt: "Image scanning tool deployed"
+
+      - id: "rem_003"
+        step: "Enforce Pod Security Standards"
+        description: "Implement restricted Pod Security Standards"
+        assigned_to: "kubernetes_admin"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "pod_security_standards"
+            prompt: "Pod Security Standards enforced"
+
+      - id: "rem_004"
+        step: "Implement runtime security"
+        description: "Deploy Falco or similar runtime protection"
+        assigned_to: "container_security_analyst"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "text"
+            name: "runtime_security_solution"
+            prompt: "Runtime security tool deployed"
+
+      - id: "rem_005"
+        step: "Harden RBAC policies"
+        description: "Implement least privilege RBAC"
+        assigned_to: "kubernetes_admin"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "rbac_hardening"
+            prompt: "RBAC hardening implemented"
+
+      - id: "rem_006"
+        step: "Enable admission control"
+        description: "Deploy OPA/Gatekeeper for policy enforcement"
+        assigned_to: "kubernetes_admin"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "text"
+            name: "admission_control"
+            prompt: "Admission control solution deployed"
+
+  closure:
+    description: "Final documentation and improvements"
+    primary_role: "incident_commander"
+
+    checklist:
+      - id: "close_001"
+        step: "Document container compromise details"
+        description: "Create technical report of compromise"
+        assigned_to: "container_security_analyst"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "technical_report"
+            prompt: "Complete documentation"
+
+      - id: "close_002"
+        step: "Update container security policies"
+        description: "Strengthen container and Kubernetes policies"
+        assigned_to: "kubernetes_admin"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "policy_updates"
+            prompt: "Policy improvements"
+
+risk_factors:
+  critical_risk:
+    - container_escape_detected: "yes"
+    - secrets_exposed: "yes"
+    - lateral_movement_to_nodes: "yes"
+
+  high_risk:
+    - malicious_image_deployed: "yes"
+    - privilege_escalation: true
+
+  medium_risk:
+    - secrets_exposed: "no"
+    - lateral_movement: true
+
+  low_risk:
+    - container_escape_detected: "no"
+
+escalation:
+  immediate:
+    criteria:
+      - "Container escape to host confirmed"
+      - "Cluster control plane compromised"
+      - "Secrets exfiltration confirmed"
+    notify_roles:
+      - "incident_commander"
+      - "kubernetes_admin"
+    additional_roles_required:
+      - "ciso"
+      - "cto"
+
+  standard:
+    criteria:
+      - "Malicious container deployed"
+      - "Limited namespace compromise"
+    notify_roles:
+      - "incident_commander"

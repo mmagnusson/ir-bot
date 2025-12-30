@@ -1,0 +1,457 @@
+# Backup System Compromise Incident Response Playbook
+# Handles ransomware targeting backups, backup encryption, and backup system breaches
+
+incident_type: backup_system_compromise
+
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads backup compromise response"
+    required: true
+
+  backup_administrator:
+    name: "Backup Administrator"
+    description: "Manages backup systems and restoration"
+    required: true
+
+  security_analyst:
+    name: "Security Analyst"
+    description: "Investigates compromise methods and threat actor"
+    required: true
+
+  infrastructure_engineer:
+    name: "Infrastructure Engineer"
+    description: "Manages infrastructure for backup restoration"
+    required: true
+
+  disaster_recovery_coordinator:
+    name: "Disaster Recovery Coordinator"
+    description: "Coordinates DR procedures and business continuity"
+    required: false
+
+phases:
+  intake:
+    description: "Initial backup compromise assessment"
+    primary_role: "incident_commander"
+    handoff_to: "backup_administrator"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      checklist_completion_threshold: 100
+
+    required_fields:
+      - backup_system_type
+      - backup_scope
+      - compromise_method
+      - time_of_detection
+
+    checklist:
+      - id: "intake_001"
+        step: "Verify backup compromise classification"
+        description: "Confirm backup systems are compromised"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_rationale"
+            prompt: "Evidence of backup compromise"
+
+      - id: "intake_002"
+        step: "Identify backup system type"
+        description: "Determine backup infrastructure (cloud, tape, disk, hybrid)"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "backup_system_details"
+            prompt: "Backup system type and vendor"
+
+      - id: "intake_003"
+        step: "Assess backup scope"
+        description: "Identify what data is backed up"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 15
+        evidence_required:
+          - type: "text"
+            name: "backup_scope_details"
+            prompt: "Systems and data backed up"
+
+      - id: "intake_004"
+        step: "Check for ransom demand"
+        description: "Determine if attack is ransomware-related"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "ransom_demand_present"
+            prompt: "Is there a ransom demand?"
+
+  investigation:
+    description: "Analyze backup compromise extent and integrity"
+    primary_role: "backup_administrator"
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    sla:
+      target_completion_hours: 4
+      escalation_threshold_hours: 6
+
+    checklist:
+      - id: "inv_001"
+        step: "Test backup integrity"
+        description: "Verify which backups are intact vs compromised"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 90
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "integrity_test_results"
+            prompt: "Backup integrity test results"
+          - type: "boolean"
+            name: "intact_backups_found"
+            prompt: "Were any intact backups found?"
+
+      - id: "inv_002"
+        step: "Check offline/air-gapped backups"
+        description: "Verify status of offline backup media"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 60
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "offline_backups_available"
+            prompt: "Are offline backups available and intact?"
+          - type: "text"
+            name: "offline_backup_details"
+            prompt: "Details of offline backup status"
+
+      - id: "inv_003"
+        step: "Determine retention period affected"
+        description: "Identify how far back backups are compromised"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 45
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "retention_period_affected"
+            prompt: "Time period of compromised backups (e.g., 90 days)"
+
+      - id: "inv_004"
+        step: "Analyze compromise method"
+        description: "Determine how backups were accessed/encrypted"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 90
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "compromise_technique"
+            prompt: "How were backups compromised?"
+
+      - id: "inv_005"
+        step: "Check immutable backup status"
+        description: "Verify if immutable/write-once backups were affected"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "immutable_backups_compromised"
+            prompt: "Were immutable backups affected?"
+
+      - id: "inv_006"
+        step: "Assess backup credential exposure"
+        description: "Determine if backup admin credentials were stolen"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 40
+        evidence_required:
+          - type: "boolean"
+            name: "backup_credentials_compromised"
+            prompt: "Were backup credentials compromised?"
+
+      - id: "inv_007"
+        step: "Review backup logs"
+        description: "Analyze backup system logs for suspicious activity"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "log_analysis"
+            prompt: "Suspicious activities found in logs"
+
+  containment:
+    description: "Secure remaining backups and prevent further damage"
+    primary_role: "incident_commander"
+    supporting_roles: ["backup_administrator", "security_analyst"]
+    handoff_to: "backup_administrator"
+
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
+
+    sla:
+      target_completion_hours: 2
+      escalation_threshold_hours: 3
+
+    checklist:
+      - id: "cont_001"
+        step: "Isolate backup systems"
+        description: "Disconnect backup infrastructure from network"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 20
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "backup_systems_isolated"
+            prompt: "Backup systems isolated from network?"
+
+      - id: "cont_002"
+        step: "Secure offline backups physically"
+        description: "Lock down tape/disk backups in secure location"
+        assigned_to: "disaster_recovery_coordinator"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "offline_backups_secured"
+            prompt: "Offline backups physically secured?"
+
+      - id: "cont_003"
+        step: "Revoke backup system credentials"
+        description: "Change all backup admin passwords immediately"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 30
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "credentials_revoked"
+            prompt: "All backup credentials changed?"
+
+      - id: "cont_004"
+        step: "Block attacker network access"
+        description: "Add attacker IPs/indicators to blocklist"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 20
+        conditions:
+          triggers_when:
+            attacker_identified: "yes"
+        evidence_required:
+          - type: "text"
+            name: "attacker_indicators_blocked"
+            prompt: "Attacker indicators blocked"
+
+      - id: "cont_005"
+        step: "Enable backup write protection"
+        description: "Activate immutability on remaining backups"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 40
+        evidence_required:
+          - type: "boolean"
+            name: "write_protection_enabled"
+            prompt: "Backup write protection enabled?"
+
+      - id: "cont_006"
+        step: "Take emergency snapshots"
+        description: "Create emergency backups of critical systems"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 60
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "emergency_snapshots_taken"
+            prompt: "Emergency snapshots completed?"
+
+  remediation:
+    description: "Restore backup capability and harden systems"
+    primary_role: "backup_administrator"
+    supporting_roles: ["infrastructure_engineer", "security_analyst"]
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    checklist:
+      - id: "rem_001"
+        step: "Rebuild backup infrastructure"
+        description: "Deploy clean backup systems from trusted source"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 240
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "backup_infrastructure_rebuilt"
+            prompt: "Backup infrastructure rebuilt from clean source?"
+
+      - id: "rem_002"
+        step: "Implement 3-2-1 backup rule"
+        description: "Ensure 3 copies, 2 media types, 1 offsite"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "text"
+            name: "three_two_one_implementation"
+            prompt: "3-2-1 backup rule implementation details"
+
+      - id: "rem_003"
+        step: "Deploy immutable backups"
+        description: "Implement write-once-read-many (WORM) backups"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 90
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "immutable_backup_solution"
+            prompt: "Immutable backup solution deployed"
+
+      - id: "rem_004"
+        step: "Configure backup network segmentation"
+        description: "Isolate backup network from production"
+        assigned_to: "infrastructure_engineer"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "network_segmentation"
+            prompt: "Backup network segmentation details"
+
+      - id: "rem_005"
+        step: "Implement MFA for backup access"
+        description: "Require multi-factor auth for backup administration"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 45
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "mfa_enabled"
+            prompt: "MFA enabled for backup access?"
+
+      - id: "rem_006"
+        step: "Create air-gapped backup process"
+        description: "Establish offline backup rotation schedule"
+        assigned_to: "disaster_recovery_coordinator"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "air_gap_process"
+            prompt: "Air-gapped backup process documentation"
+
+      - id: "rem_007"
+        step: "Test backup restoration"
+        description: "Verify backups can be successfully restored"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 120
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "restoration_test_successful"
+            prompt: "Backup restoration test successful?"
+
+      - id: "rem_008"
+        step: "Implement backup monitoring"
+        description: "Deploy monitoring for backup integrity and anomalies"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "backup_monitoring_solution"
+            prompt: "Backup monitoring solution deployed"
+
+      - id: "rem_009"
+        step: "Document backup recovery procedures"
+        description: "Create/update disaster recovery runbooks"
+        assigned_to: "disaster_recovery_coordinator"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "boolean"
+            name: "recovery_procedures_documented"
+            prompt: "Recovery procedures documented?"
+
+  closure:
+    description: "Final documentation and improvements"
+    primary_role: "incident_commander"
+
+    checklist:
+      - id: "close_001"
+        step: "Document backup compromise details"
+        description: "Create comprehensive technical report"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "technical_report"
+            prompt: "Complete technical documentation"
+
+      - id: "close_002"
+        step: "Create incident timeline"
+        description: "Document discovery to remediation timeline"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete timeline"
+
+      - id: "close_003"
+        step: "Update backup security policies"
+        description: "Strengthen backup policies based on lessons learned"
+        assigned_to: "backup_administrator"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "policy_updates"
+            prompt: "Backup security policy updates"
+
+      - id: "close_004"
+        step: "Conduct backup restoration drill"
+        description: "Schedule regular DR testing"
+        assigned_to: "disaster_recovery_coordinator"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "dr_drill_scheduled"
+            prompt: "DR drill scheduled?"
+
+risk_factors:
+  critical_risk:
+    - offline_backups_available: "no"
+    - immutable_backups_compromised: "yes"
+    - ransom_demand_present: "yes"
+    - retention_period_affected: ">90 days"
+
+  high_risk:
+    - backup_credentials_compromised: "yes"
+    - intact_backups_found: "no"
+
+  medium_risk:
+    - offline_backups_available: "yes"
+    - immutable_backups_compromised: "no"
+
+  low_risk:
+    - intact_backups_found: "yes"
+    - ransom_demand_present: "no"
+
+escalation:
+  immediate:
+    criteria:
+      - "No intact backups available"
+      - "All backup retention periods compromised"
+      - "Immutable backups successfully encrypted"
+    notify_roles:
+      - "incident_commander"
+      - "backup_administrator"
+      - "disaster_recovery_coordinator"
+    additional_roles_required:
+      - "ciso"
+      - "cto"
+      - "ceo"
+
+  standard:
+    criteria:
+      - "Offline backups available"
+      - "Limited backup compromise"
+    notify_roles:
+      - "incident_commander"
+      - "backup_administrator"

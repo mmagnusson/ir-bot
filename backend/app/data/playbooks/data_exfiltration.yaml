@@ -1,0 +1,567 @@
+# Data Exfiltration Incident Response Playbook
+# Handles unauthorized data transfers, intellectual property theft, and data leakage
+
+incident_type: data_exfiltration
+
+# Role definitions for this incident type
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads response and coordinates investigation"
+    required: true
+
+  forensics_analyst:
+    name: "Digital Forensics Analyst"
+    description: "Investigates data movement and attacker methods"
+    required: true
+
+  network_security_analyst:
+    name: "Network Security Analyst"
+    description: "Analyzes network traffic and implements controls"
+    required: true
+
+  data_protection_officer:
+    name: "Data Protection Officer"
+    description: "Assesses data classification and regulatory impact"
+    required: true
+
+  legal_counsel:
+    name: "Legal Counsel"
+    description: "Handles legal implications and breach notifications"
+    required: false
+    escalation_triggers: ["pii_exfiltrated", "regulatory_notification_required"]
+
+  hr_representative:
+    name: "HR Representative"
+    description: "Coordinates on insider threat investigations"
+    required: false
+    escalation_triggers: ["insider_involvement"]
+
+phases:
+  intake:
+    description: "Initial data exfiltration assessment"
+    primary_role: "incident_commander"
+    handoff_to: "forensics_analyst"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      checklist_completion_threshold: 100
+
+    required_fields:
+      - affected_system
+      - data_classification
+      - exfiltration_method
+      - time_of_detection
+
+    checklist:
+      - id: "intake_001"
+        step: "Verify data exfiltration classification"
+        description: "Confirm unauthorized data transfer occurred"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_rationale"
+            prompt: "Why is this classified as data exfiltration?"
+
+      - id: "intake_002"
+        step: "Identify data classification level"
+        description: "Determine sensitivity of exfiltrated data"
+        assigned_to: "data_protection_officer"
+        estimated_time_minutes: 15
+        dependencies: ["intake_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "data_classification"
+            prompt: "Data classification (public, internal, confidential, restricted)"
+          - type: "text"
+            name: "data_types"
+            prompt: "Types of data exfiltrated (PII, PHI, financial, IP, etc.)"
+
+      - id: "intake_003"
+        step: "Determine exfiltration method"
+        description: "Identify how data was exfiltrated"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 20
+        dependencies: ["intake_001"]
+        evidence_required:
+          - type: "text"
+            name: "exfiltration_method"
+            prompt: "Method used (email, cloud storage, FTP, USB, etc.)"
+          - type: "text"
+            name: "exfiltration_destination"
+            prompt: "Destination of exfiltrated data"
+            optional: true
+
+      - id: "intake_004"
+        step: "Estimate data volume"
+        description: "Determine approximate volume of data exfiltrated"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 15
+        evidence_required:
+          - type: "text"
+            name: "estimated_volume"
+            prompt: "Estimated data volume (MB, GB, number of records)"
+
+      - id: "intake_005"
+        step: "Check if exfiltration is ongoing"
+        description: "Determine if data is still being exfiltrated"
+        assigned_to: "network_security_analyst"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "exfiltration_ongoing"
+            prompt: "Is exfiltration currently ongoing?"
+
+  investigation:
+    description: "Analyze exfiltration scope and attribution"
+    primary_role: "forensics_analyst"
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    sla:
+      target_completion_hours: 6
+      escalation_threshold_hours: 8
+      notify_roles: ["incident_commander", "data_protection_officer"]
+
+    notifications:
+      - trigger: "step_completed"
+        step_id: "inv_004"
+        notify_roles: ["incident_commander", "legal_counsel"]
+        message: "Insider involvement assessment complete"
+
+    checklist:
+      - id: "inv_001"
+        step: "Analyze source system logs"
+        description: "Review logs from system where data originated"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 45
+        critical: true
+        evidence_required:
+          - type: "file"
+            name: "source_system_logs"
+            prompt: "Upload source system logs"
+          - type: "text"
+            name: "first_exfiltration_time"
+            prompt: "Timestamp of first observed exfiltration"
+
+      - id: "inv_002"
+        step: "Review network traffic logs"
+        description: "Analyze egress traffic and data transfer patterns"
+        assigned_to: "network_security_analyst"
+        estimated_time_minutes: 60
+        dependencies: ["inv_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "destination_ips"
+            prompt: "Destination IP addresses or domains"
+          - type: "text"
+            name: "protocols_used"
+            prompt: "Protocols used for exfiltration"
+          - type: "text"
+            name: "total_data_transferred"
+            prompt: "Total volume transferred (refined estimate)"
+
+      - id: "inv_003"
+        step: "Identify user or account responsible"
+        description: "Determine which account was used for exfiltration"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 30
+        dependencies: ["inv_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "responsible_account"
+            prompt: "Account username that performed exfiltration"
+          - type: "text"
+            name: "account_owner"
+            prompt: "Name of account owner"
+
+      - id: "inv_004"
+        step: "Assess for insider involvement"
+        description: "Determine if this was insider threat or external compromise"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 45
+        dependencies: ["inv_003"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "insider_suspected"
+            prompt: "Is insider involvement suspected?"
+          - type: "text"
+            name: "insider_indicators"
+            prompt: "Indicators supporting insider involvement assessment"
+
+      - id: "inv_005"
+        step: "Check for data encryption"
+        description: "Determine if data was encrypted during exfiltration"
+        assigned_to: "network_security_analyst"
+        estimated_time_minutes: 20
+        evidence_required:
+          - type: "boolean"
+            name: "data_encrypted"
+            prompt: "Was data encrypted during transfer?"
+          - type: "text"
+            name: "encryption_details"
+            prompt: "Encryption method if detected"
+            optional: true
+
+      - id: "inv_006"
+        step: "Inventory exfiltrated files"
+        description: "Create list of specific files or data sets exfiltrated"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 90
+        parallel_group: "scope_analysis"
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "file_inventory"
+            prompt: "List of exfiltrated files or data sets"
+          - type: "number"
+            name: "file_count"
+            prompt: "Total number of files exfiltrated"
+
+      - id: "inv_007"
+        step: "Check for similar exfiltration activity"
+        description: "Search for other instances of data exfiltration"
+        assigned_to: "network_security_analyst"
+        estimated_time_minutes: 40
+        parallel_group: "scope_analysis"
+        evidence_required:
+          - type: "boolean"
+            name: "similar_activity_found"
+            prompt: "Was similar exfiltration activity found?"
+          - type: "text"
+            name: "other_affected_systems"
+            prompt: "Other systems affected by exfiltration"
+            optional: true
+
+      - id: "inv_008"
+        step: "Assess regulatory notification requirements"
+        description: "Determine if breach notification is legally required"
+        assigned_to: "data_protection_officer"
+        estimated_time_minutes: 30
+        dependencies: ["inv_002", "inv_006"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "notification_required"
+            prompt: "Is regulatory notification required?"
+          - type: "text"
+            name: "applicable_regulations"
+            prompt: "Applicable regulations (GDPR, HIPAA, CCPA, etc.)"
+            optional: true
+          - type: "text"
+            name: "notification_deadline"
+            prompt: "Deadline for notification"
+            optional: true
+
+  containment:
+    description: "Stop ongoing exfiltration and prevent further loss"
+    primary_role: "incident_commander"
+    supporting_roles: ["network_security_analyst", "forensics_analyst"]
+    handoff_to: "data_protection_officer"
+
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
+
+    sla:
+      target_completion_hours: 2
+      escalation_threshold_hours: 3
+      notify_roles: ["incident_commander"]
+
+    checklist:
+      - id: "cont_001"
+        step: "Block exfiltration destination"
+        description: "Block IP addresses and domains receiving data"
+        assigned_to: "network_security_analyst"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "blocked_destinations"
+            prompt: "IP addresses/domains blocked"
+          - type: "timestamp"
+            name: "block_time"
+            prompt: "When were destinations blocked?"
+
+      - id: "cont_002"
+        step: "Disable compromised account"
+        description: "Immediately disable account used for exfiltration"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "account_disabled"
+            prompt: "Account disabled?"
+          - type: "timestamp"
+            name: "disable_time"
+            prompt: "When was account disabled?"
+
+      - id: "cont_003"
+        step: "Implement DLP controls"
+        description: "Deploy or strengthen Data Loss Prevention rules"
+        assigned_to: "network_security_analyst"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "dlp_rules_deployed"
+            prompt: "Description of DLP rules implemented"
+
+      - id: "cont_004"
+        step: "Restrict data access permissions"
+        description: "Reduce access to sensitive data on affected system"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 25
+        evidence_required:
+          - type: "text"
+            name: "access_restrictions"
+            prompt: "Access restrictions implemented"
+          - type: "number"
+            name: "users_access_revoked"
+            prompt: "Number of users whose access was modified"
+
+      - id: "cont_005"
+        step: "Isolate affected system if needed"
+        description: "Network isolate system to prevent further exfiltration"
+        assigned_to: "network_security_analyst"
+        estimated_time_minutes: 20
+        conditions:
+          triggers_when:
+            ongoing_exfiltration: "yes"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "system_isolated"
+            prompt: "System isolated from network?"
+
+      - id: "cont_006"
+        step: "Engage insider threat team if needed"
+        description: "Coordinate with HR on insider investigation"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        conditions:
+          triggers_when:
+            insider_involvement: "yes"
+        evidence_required:
+          - type: "boolean"
+            name: "hr_engaged"
+            prompt: "HR and insider threat team engaged?"
+
+      - id: "cont_007"
+        step: "Preserve forensic evidence"
+        description: "Create forensic images and preserve logs"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 60
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "evidence_preserved"
+            prompt: "Forensic evidence preserved?"
+          - type: "text"
+            name: "evidence_location"
+            prompt: "Location of preserved evidence"
+
+  remediation:
+    description: "Assess damage and implement long-term controls"
+    primary_role: "data_protection_officer"
+    supporting_roles: ["legal_counsel", "network_security_analyst"]
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 80
+
+    checklist:
+      - id: "rem_001"
+        step: "Perform breach notification if required"
+        description: "Notify regulators and affected individuals"
+        assigned_to: "legal_counsel"
+        estimated_time_minutes: 180
+        conditions:
+          triggers_when:
+            notification_required: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "notifications_sent"
+            prompt: "Required notifications sent?"
+          - type: "text"
+            name: "notification_recipients"
+            prompt: "Who was notified (regulators, individuals, etc.)"
+          - type: "timestamp"
+            name: "notification_date"
+            prompt: "When were notifications sent?"
+
+      - id: "rem_002"
+        step: "Implement enhanced DLP monitoring"
+        description: "Deploy comprehensive DLP solution organization-wide"
+        assigned_to: "network_security_analyst"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "text"
+            name: "dlp_solution_details"
+            prompt: "DLP solution implemented and scope"
+
+      - id: "rem_003"
+        step: "Review and classify sensitive data"
+        description: "Conduct data discovery and classification project"
+        assigned_to: "data_protection_officer"
+        estimated_time_minutes: 240
+        evidence_required:
+          - type: "boolean"
+            name: "data_classification_started"
+            prompt: "Data classification project initiated?"
+
+      - id: "rem_004"
+        step: "Implement least privilege access"
+        description: "Review and reduce data access across organization"
+        assigned_to: "data_protection_officer"
+        estimated_time_minutes: 180
+        evidence_required:
+          - type: "text"
+            name: "access_review_summary"
+            prompt: "Summary of access review and changes"
+
+      - id: "rem_005"
+        step: "Deploy user activity monitoring"
+        description: "Implement UEBA or enhanced user activity logging"
+        assigned_to: "network_security_analyst"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "monitoring_solution"
+            prompt: "User activity monitoring solution deployed"
+
+      - id: "rem_006"
+        step: "Conduct insider threat training"
+        description: "Train employees on data protection and insider threats"
+        assigned_to: "hr_representative"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "boolean"
+            name: "training_scheduled"
+            prompt: "Insider threat training scheduled?"
+
+      - id: "rem_007"
+        step: "Enable encryption for sensitive data"
+        description: "Encrypt sensitive data at rest and in transit"
+        assigned_to: "network_security_analyst"
+        estimated_time_minutes: 150
+        evidence_required:
+          - type: "text"
+            name: "encryption_implementation"
+            prompt: "Description of encryption implemented"
+
+  closure:
+    description: "Final documentation and lessons learned"
+    primary_role: "incident_commander"
+
+    checklist:
+      - id: "close_001"
+        step: "Document complete data inventory"
+        description: "Create final list of all data exfiltrated"
+        assigned_to: "forensics_analyst"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "final_data_inventory"
+            prompt: "Complete inventory of exfiltrated data"
+
+      - id: "close_002"
+        step: "Create incident timeline"
+        description: "Document timeline from initial exfiltration to closure"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete incident timeline"
+
+      - id: "close_003"
+        step: "Assess financial and reputational impact"
+        description: "Document business impact of data exfiltration"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "impact_assessment"
+            prompt: "Assessment of incident impact"
+
+      - id: "close_004"
+        step: "Complete lessons learned analysis"
+        description: "Identify gaps and improvement opportunities"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 40
+        dependencies: ["close_001", "close_002", "close_003"]
+        evidence_required:
+          - type: "text"
+            name: "lessons_learned"
+            prompt: "Key lessons learned"
+          - type: "text"
+            name: "recommended_improvements"
+            prompt: "Recommended security improvements"
+
+# Risk Assessment Criteria
+risk_factors:
+  critical_risk:
+    - data_classification: "restricted"
+    - estimated_data_volume: ">10GB"
+    - notification_required: true
+    - insider_involvement: "yes"
+
+  high_risk:
+    - data_classification: "confidential"
+    - estimated_data_volume: ">1GB"
+    - ongoing_exfiltration: "yes"
+
+  medium_risk:
+    - data_classification: "internal"
+    - encryption_used: "no"
+
+  low_risk:
+    - data_classification: "public"
+    - estimated_data_volume: "<100MB"
+
+# Escalation Criteria
+escalation:
+  immediate:
+    criteria:
+      - "PII or PHI exfiltration exceeding 1000 records"
+      - "Intellectual property or trade secrets exfiltrated"
+      - "Ongoing active exfiltration"
+      - "Confirmed insider threat"
+    notify_roles:
+      - "incident_commander"
+      - "data_protection_officer"
+      - "legal_counsel"
+    additional_roles_required:
+      - "ciso"
+      - "ceo"
+      - "general_counsel"
+
+  standard:
+    criteria:
+      - "Confidential data exfiltration"
+      - "Regulatory notification likely required"
+      - "External attacker attribution"
+    notify_roles:
+      - "incident_commander"
+      - "data_protection_officer"
+
+  low_priority:
+    criteria:
+      - "Internal or public data only"
+      - "Small volume exfiltration"
+      - "Exfiltration blocked before completion"
+    notify_roles:
+      - "incident_commander"

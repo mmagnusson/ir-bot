@@ -1,0 +1,501 @@
+# Mobile Device Compromise Incident Response Playbook
+# Handles smartphones, tablets, MDM bypass, mobile malware, jailbreak/root, SIM swapping, and BYOD incidents
+
+incident_type: mobile_device_compromise
+
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads mobile device compromise response"
+    required: true
+
+  mobile_device_manager:
+    name: "Mobile Device Manager"
+    description: "Manages MDM/EMM platform and device policies"
+    required: true
+
+  security_analyst:
+    name: "Security Analyst"
+    description: "Investigates mobile malware and compromise methods"
+    required: true
+
+  it_support:
+    name: "IT Support"
+    description: "Assists with device recovery and user communication"
+    required: true
+
+  telecom_liaison:
+    name: "Telecom Liaison"
+    description: "Coordinates with carriers for SIM swap incidents"
+    required: false
+
+phases:
+  intake:
+    description: "Initial mobile device compromise assessment"
+    primary_role: "incident_commander"
+    handoff_to: "mobile_device_manager"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      checklist_completion_threshold: 100
+
+    required_fields:
+      - device_type
+      - device_ownership
+      - compromise_method
+      - time_of_detection
+
+    checklist:
+      - id: "intake_001"
+        step: "Verify mobile device compromise classification"
+        description: "Confirm mobile device is compromised"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_rationale"
+            prompt: "Evidence of mobile device compromise"
+
+      - id: "intake_002"
+        step: "Identify device type and platform"
+        description: "Determine device model and OS (iOS/Android)"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "device_details"
+            prompt: "Device type and OS version (e.g., iPhone 14 iOS 17.2, Samsung S23 Android 14)"
+
+      - id: "intake_003"
+        step: "Determine device ownership"
+        description: "Classify as corporate, BYOD, or contractor device"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "ownership_classification"
+            prompt: "Device ownership (corporate, BYOD, contractor)"
+
+      - id: "intake_004"
+        step: "Check MDM enrollment status"
+        description: "Verify if device is enrolled in MDM/EMM"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "mdm_enrolled"
+            prompt: "Is device enrolled in MDM?"
+
+  investigation:
+    description: "Analyze mobile device compromise"
+    primary_role: "mobile_device_manager"
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    sla:
+      target_completion_hours: 3
+      escalation_threshold_hours: 4
+
+    checklist:
+      - id: "inv_001"
+        step: "Check for jailbreak/root detection"
+        description: "Determine if device is jailbroken (iOS) or rooted (Android)"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 20
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "device_jailbroken_rooted"
+            prompt: "Is device jailbroken or rooted?"
+
+      - id: "inv_002"
+        step: "Scan for mobile malware"
+        description: "Run mobile security scan if possible"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 45
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "mobile_malware_detected"
+            prompt: "Was mobile malware detected?"
+          - type: "text"
+            name: "malware_details"
+            prompt: "Malware family and capabilities"
+            optional: true
+
+      - id: "inv_003"
+        step: "Review installed applications"
+        description: "Check for malicious or unauthorized apps"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "malicious_apps_found"
+            prompt: "Were malicious apps found?"
+          - type: "text"
+            name: "app_list"
+            prompt: "List of suspicious applications"
+            optional: true
+
+      - id: "inv_004"
+        step: "Check MDM compliance status"
+        description: "Verify if device violated MDM policies"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 20
+        conditions:
+          triggers_when:
+            mdm_enrolled: true
+        evidence_required:
+          - type: "boolean"
+            name: "mdm_compliance_violated"
+            prompt: "Did device violate MDM policies?"
+
+      - id: "inv_005"
+        step: "Assess corporate data access"
+        description: "Determine what corporate data device could access"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 35
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "corporate_data_accessed"
+            prompt: "Was corporate data accessed?"
+          - type: "text"
+            name: "data_accessed_types"
+            prompt: "Types of corporate data on device"
+
+      - id: "inv_006"
+        step: "Check for SIM swap attack"
+        description: "Investigate if phone number was ported/swapped"
+        assigned_to: "telecom_liaison"
+        estimated_time_minutes: 25
+        evidence_required:
+          - type: "boolean"
+            name: "sim_swap_detected"
+            prompt: "Was SIM swap detected?"
+
+      - id: "inv_007"
+        step: "Review device location history"
+        description: "Check last known device location"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 15
+        evidence_required:
+          - type: "boolean"
+            name: "device_location_known"
+            prompt: "Is current device location known?"
+          - type: "text"
+            name: "last_known_location"
+            prompt: "Last known location"
+            optional: true
+
+      - id: "inv_008"
+        step: "Analyze network connections"
+        description: "Review WiFi and VPN connections from device"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "suspicious_network_activity"
+            prompt: "Was suspicious network activity detected?"
+
+  containment:
+    description: "Isolate device and prevent further damage"
+    primary_role: "incident_commander"
+    supporting_roles: ["mobile_device_manager", "security_analyst"]
+    handoff_to: "mobile_device_manager"
+
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
+
+    sla:
+      target_completion_hours: 1
+      escalation_threshold_hours: 2
+
+    checklist:
+      - id: "cont_001"
+        step: "Remote wipe corporate data"
+        description: "Initiate selective or full wipe via MDM"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 10
+        conditions:
+          triggers_when:
+            corporate_data_accessed: "yes"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "remote_wipe_initiated"
+            prompt: "Remote wipe initiated?"
+          - type: "text"
+            name: "wipe_type"
+            prompt: "Wipe type (selective/full)"
+
+      - id: "cont_002"
+        step: "Revoke device access to corporate resources"
+        description: "Block device from email, VPN, apps"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "device_access_revoked"
+            prompt: "Device access revoked?"
+
+      - id: "cont_003"
+        step: "Disable cellular service"
+        description: "Contact carrier to suspend service if needed"
+        assigned_to: "telecom_liaison"
+        estimated_time_minutes: 20
+        conditions:
+          triggers_when:
+            sim_swap_detected: "yes"
+        evidence_required:
+          - type: "boolean"
+            name: "cellular_service_suspended"
+            prompt: "Cellular service suspended?"
+
+      - id: "cont_004"
+        step: "Reset user account passwords"
+        description: "Force password reset for accounts accessed from device"
+        assigned_to: "it_support"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "passwords_reset"
+            prompt: "Account passwords reset?"
+
+      - id: "cont_005"
+        step: "Revoke MFA tokens and app passwords"
+        description: "Invalidate authenticator apps and app-specific passwords"
+        assigned_to: "it_support"
+        estimated_time_minutes: 10
+        evidence_required:
+          - type: "boolean"
+            name: "mfa_tokens_revoked"
+            prompt: "MFA tokens revoked?"
+
+      - id: "cont_006"
+        step: "Contact device owner"
+        description: "Notify user of compromise and actions taken"
+        assigned_to: "it_support"
+        estimated_time_minutes: 15
+        evidence_required:
+          - type: "boolean"
+            name: "user_notified"
+            prompt: "User notified?"
+
+      - id: "cont_007"
+        step: "Enable lost mode (if available)"
+        description: "Lock device and display contact message"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 5
+        conditions:
+          triggers_when:
+            device_location_known: "no"
+        evidence_required:
+          - type: "boolean"
+            name: "lost_mode_enabled"
+            prompt: "Lost mode enabled?"
+
+  remediation:
+    description: "Restore secure mobile access"
+    primary_role: "mobile_device_manager"
+    supporting_roles: ["security_analyst", "it_support"]
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    checklist:
+      - id: "rem_001"
+        step: "Factory reset and re-provision device"
+        description: "Completely wipe and re-enroll device in MDM"
+        assigned_to: "it_support"
+        estimated_time_minutes: 60
+        conditions:
+          triggers_when:
+            device_ownership: "corporate"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "device_factory_reset"
+            prompt: "Device factory reset completed?"
+
+      - id: "rem_002"
+        step: "Update MDM security policies"
+        description: "Strengthen device compliance requirements"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "mdm_policy_updates"
+            prompt: "MDM policy changes implemented"
+
+      - id: "rem_003"
+        step: "Implement app whitelisting"
+        description: "Restrict allowed applications on mobile devices"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "boolean"
+            name: "app_whitelist_enabled"
+            prompt: "App whitelisting enabled?"
+
+      - id: "rem_004"
+        step: "Enable jailbreak/root detection"
+        description: "Block compromised devices from corporate access"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 30
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "jailbreak_detection_enabled"
+            prompt: "Jailbreak/root detection enabled?"
+
+      - id: "rem_005"
+        step: "Deploy mobile threat defense (MTD)"
+        description: "Implement MTD solution for malware protection"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "text"
+            name: "mtd_solution"
+            prompt: "Mobile Threat Defense solution deployed"
+
+      - id: "rem_006"
+        step: "Implement containerization for BYOD"
+        description: "Separate corporate and personal data"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "boolean"
+            name: "containerization_enabled"
+            prompt: "Work profile/container enabled?"
+
+      - id: "rem_007"
+        step: "Configure network-level protection"
+        description: "Block known malicious mobile URLs and IPs"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "network_protection"
+            prompt: "Network protection configured"
+
+      - id: "rem_008"
+        step: "Update BYOD policy"
+        description: "Strengthen acceptable use policy for personal devices"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "boolean"
+            name: "byod_policy_updated"
+            prompt: "BYOD policy updated?"
+
+      - id: "rem_009"
+        step: "Implement phishing-resistant MFA"
+        description: "Deploy hardware keys or platform authenticators"
+        assigned_to: "it_support"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "phishing_resistant_mfa"
+            prompt: "Phishing-resistant MFA method deployed"
+
+  closure:
+    description: "Final documentation and improvements"
+    primary_role: "incident_commander"
+
+    checklist:
+      - id: "close_001"
+        step: "Document mobile device compromise details"
+        description: "Create comprehensive technical report"
+        assigned_to: "security_analyst"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "technical_report"
+            prompt: "Complete technical documentation"
+
+      - id: "close_002"
+        step: "Create incident timeline"
+        description: "Document attack and response timeline"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete timeline"
+
+      - id: "close_003"
+        step: "Update mobile security policies"
+        description: "Strengthen mobile device policies"
+        assigned_to: "mobile_device_manager"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "policy_updates"
+            prompt: "Mobile security policy updates"
+
+      - id: "close_004"
+        step: "Conduct mobile security awareness training"
+        description: "Train users on mobile security best practices"
+        assigned_to: "it_support"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "training_scheduled"
+            prompt: "Mobile security training scheduled?"
+
+risk_factors:
+  critical_risk:
+    - device_jailbroken_rooted: "yes"
+    - mobile_malware_detected: "yes"
+    - corporate_data_accessed: "yes"
+    - mdm_enrolled: "no"
+
+  high_risk:
+    - sim_swap_detected: "yes"
+    - mdm_compliance_violated: "yes"
+    - device_ownership: "BYOD"
+
+  medium_risk:
+    - malicious_apps_found: "yes"
+    - suspicious_network_activity: "yes"
+
+  low_risk:
+    - mdm_enrolled: "yes"
+    - jailbreak_detection_enabled: "yes"
+
+escalation:
+  immediate:
+    criteria:
+      - "Mobile malware with corporate data access confirmed"
+      - "SIM swap targeting executive/privileged user"
+      - "Jailbroken device accessing sensitive corporate systems"
+      - "BYOD device with unencrypted corporate data compromised"
+    notify_roles:
+      - "incident_commander"
+      - "mobile_device_manager"
+      - "security_analyst"
+    additional_roles_required:
+      - "ciso"
+      - "legal_counsel"
+
+  standard:
+    criteria:
+      - "Malicious app on corporate device"
+      - "MDM policy violation detected"
+      - "Low-risk BYOD compromise"
+    notify_roles:
+      - "incident_commander"
+      - "mobile_device_manager"

@@ -1,0 +1,526 @@
+# API Security Breach Incident Response Playbook
+# Handles broken authentication, excessive data exposure, injection attacks, and API abuse
+
+incident_type: api_security_breach
+
+# Role definitions for this incident type
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads response and coordinates teams"
+    required: true
+
+  api_security_analyst:
+    name: "API Security Analyst"
+    description: "Investigates API vulnerabilities and attacks"
+    required: true
+
+  backend_developer:
+    name: "Backend Developer"
+    description: "Fixes API code and implements security controls"
+    required: true
+
+  infrastructure_admin:
+    name: "Infrastructure Administrator"
+    description: "Manages API gateway, rate limiting, and WAF"
+    required: true
+
+  data_protection_officer:
+    name: "Data Protection Officer"
+    description: "Assesses data exposure and regulatory impact"
+    required: false
+    escalation_triggers: ["data_exfiltrated", "pii_exposed"]
+
+phases:
+  intake:
+    description: "Initial API security breach assessment"
+    primary_role: "incident_commander"
+    handoff_to: "api_security_analyst"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      checklist_completion_threshold: 100
+
+    required_fields:
+      - affected_api
+      - attack_type
+      - time_of_detection
+
+    checklist:
+      - id: "intake_001"
+        step: "Verify API security breach classification"
+        description: "Confirm this is an API security incident"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_rationale"
+            prompt: "Why is this classified as API security breach?"
+
+      - id: "intake_002"
+        step: "Identify affected API endpoint"
+        description: "Determine which API service/endpoint is compromised"
+        assigned_to: "api_security_analyst"
+        estimated_time_minutes: 10
+        dependencies: ["intake_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "api_endpoint"
+            prompt: "Affected API endpoint URL"
+          - type: "text"
+            name: "api_version"
+            prompt: "API version if applicable"
+
+      - id: "intake_003"
+        step: "Classify attack type"
+        description: "Identify OWASP API Security Top 10 category"
+        assigned_to: "api_security_analyst"
+        estimated_time_minutes: 10
+        dependencies: ["intake_002"]
+        evidence_required:
+          - type: "text"
+            name: "owasp_category"
+            prompt: "OWASP API category (broken auth, excessive data exposure, etc.)"
+
+      - id: "intake_004"
+        step: "Assess API authentication method"
+        description: "Determine authentication mechanism used"
+        assigned_to: "api_security_analyst"
+        estimated_time_minutes: 5
+        evidence_required:
+          - type: "text"
+            name: "auth_method"
+            prompt: "Authentication method (OAuth, API key, JWT, Basic Auth, etc.)"
+
+      - id: "intake_005"
+        step: "Check if attack is ongoing"
+        description: "Determine if API is currently under attack"
+        assigned_to: "infrastructure_admin"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "attack_ongoing"
+            prompt: "Is API currently being attacked?"
+
+  investigation:
+    description: "Analyze API breach scope and impact"
+    primary_role: "api_security_analyst"
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    sla:
+      target_completion_hours: 4
+      escalation_threshold_hours: 6
+      notify_roles: ["incident_commander", "backend_developer"]
+
+    checklist:
+      - id: "inv_001"
+        step: "Analyze API access logs"
+        description: "Review API gateway and application logs for attack patterns"
+        assigned_to: "api_security_analyst"
+        estimated_time_minutes: 45
+        critical: true
+        evidence_required:
+          - type: "file"
+            name: "api_logs"
+            prompt: "Upload API access logs"
+          - type: "text"
+            name: "attack_pattern_description"
+            prompt: "Description of attack pattern"
+
+      - id: "inv_002"
+        step: "Identify attacker source"
+        description: "Determine attacker IP addresses and geographic location"
+        assigned_to: "api_security_analyst"
+        estimated_time_minutes: 20
+        dependencies: ["inv_001"]
+        evidence_required:
+          - type: "text"
+            name: "attacker_ips"
+            prompt: "List of attacker IP addresses"
+          - type: "text"
+            name: "attack_origin"
+            prompt: "Geographic origin and ISP if known"
+
+      - id: "inv_003"
+        step: "Assess data exposure"
+        description: "Determine if sensitive data was accessed or exfiltrated"
+        assigned_to: "api_security_analyst"
+        estimated_time_minutes: 60
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "data_exposed"
+            prompt: "Was sensitive data exposed?"
+          - type: "text"
+            name: "data_types_exposed"
+            prompt: "Types of data exposed (PII, credentials, business data)"
+            optional: true
+          - type: "text"
+            name: "records_affected_estimate"
+            prompt: "Estimated number of records exposed"
+            optional: true
+
+      - id: "inv_004"
+        step: "Check for API key compromise"
+        description: "Determine if API keys or tokens were compromised"
+        assigned_to: "api_security_analyst"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "api_keys_compromised"
+            prompt: "Were API keys or tokens compromised?"
+          - type: "number"
+            name: "compromised_keys_count"
+            prompt: "Number of compromised keys"
+            optional: true
+
+      - id: "inv_005"
+        step: "Analyze rate limiting bypass"
+        description: "Check if rate limits were bypassed or absent"
+        assigned_to: "infrastructure_admin"
+        estimated_time_minutes: 20
+        evidence_required:
+          - type: "boolean"
+            name: "rate_limit_bypassed"
+            prompt: "Was rate limiting bypassed?"
+          - type: "text"
+            name: "bypass_method"
+            prompt: "How was rate limiting bypassed?"
+            optional: true
+
+      - id: "inv_006"
+        step: "Review API authorization logic"
+        description: "Analyze if authorization checks were bypassed"
+        assigned_to: "backend_developer"
+        estimated_time_minutes: 45
+        parallel_group: "code_review"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "authorization_bypassed"
+            prompt: "Was authorization bypassed?"
+          - type: "text"
+            name: "authorization_flaw"
+            prompt: "Description of authorization flaw"
+            optional: true
+
+      - id: "inv_007"
+        step: "Check for injection vulnerabilities"
+        description: "Test for SQL, NoSQL, or command injection"
+        assigned_to: "backend_developer"
+        estimated_time_minutes: 40
+        parallel_group: "code_review"
+        evidence_required:
+          - type: "boolean"
+            name: "injection_vulnerability_found"
+            prompt: "Was injection vulnerability found?"
+          - type: "text"
+            name: "injection_type"
+            prompt: "Type of injection (SQL, NoSQL, command, etc.)"
+            optional: true
+
+      - id: "inv_008"
+        step: "Assess business logic abuse"
+        description: "Check if API business logic was abused"
+        assigned_to: "backend_developer"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "business_logic_abused"
+            prompt: "Was business logic abused?"
+          - type: "text"
+            name: "abuse_description"
+            prompt: "Description of business logic abuse"
+            optional: true
+
+  containment:
+    description: "Stop API attack and prevent further damage"
+    primary_role: "incident_commander"
+    supporting_roles: ["infrastructure_admin", "api_security_analyst"]
+    handoff_to: "backend_developer"
+
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
+
+    sla:
+      target_completion_hours: 1
+      escalation_threshold_hours: 2
+      notify_roles: ["incident_commander"]
+
+    checklist:
+      - id: "cont_001"
+        step: "Block attacker IP addresses"
+        description: "Add attacker IPs to API gateway or WAF blocklist"
+        assigned_to: "infrastructure_admin"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "blocked_ips"
+            prompt: "IP addresses blocked"
+          - type: "timestamp"
+            name: "block_time"
+            prompt: "When were IPs blocked?"
+
+      - id: "cont_002"
+        step: "Revoke compromised API keys"
+        description: "Immediately invalidate all compromised API keys and tokens"
+        assigned_to: "api_security_analyst"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "keys_revoked"
+            prompt: "Compromised keys revoked?"
+          - type: "number"
+            name: "keys_revoked_count"
+            prompt: "Number of keys revoked"
+
+      - id: "cont_003"
+        step: "Enable aggressive rate limiting"
+        description: "Implement strict rate limits on affected endpoints"
+        assigned_to: "infrastructure_admin"
+        estimated_time_minutes: 20
+        evidence_required:
+          - type: "text"
+            name: "new_rate_limits"
+            prompt: "New rate limit configuration"
+
+      - id: "cont_004"
+        step: "Deploy API gateway rules"
+        description: "Create API gateway rules to block attack patterns"
+        assigned_to: "infrastructure_admin"
+        estimated_time_minutes: 25
+        evidence_required:
+          - type: "text"
+            name: "gateway_rules"
+            prompt: "API gateway rules deployed"
+
+      - id: "cont_005"
+        step: "Disable vulnerable endpoint if needed"
+        description: "Temporarily disable critically vulnerable API endpoint"
+        assigned_to: "infrastructure_admin"
+        estimated_time_minutes: 10
+        conditions:
+          triggers_when:
+            data_exposed: true
+        evidence_required:
+          - type: "boolean"
+            name: "endpoint_disabled"
+            prompt: "Vulnerable endpoint disabled?"
+          - type: "text"
+            name: "business_impact_assessment"
+            prompt: "Assessment of business impact"
+
+      - id: "cont_006"
+        step: "Enable enhanced API logging"
+        description: "Increase logging verbosity for attack analysis"
+        assigned_to: "infrastructure_admin"
+        estimated_time_minutes: 15
+        evidence_required:
+          - type: "boolean"
+            name: "enhanced_logging_enabled"
+            prompt: "Enhanced logging enabled?"
+
+  remediation:
+    description: "Fix API vulnerabilities and restore security"
+    primary_role: "backend_developer"
+    supporting_roles: ["api_security_analyst", "infrastructure_admin"]
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 90
+
+    checklist:
+      - id: "rem_001"
+        step: "Fix authentication vulnerabilities"
+        description: "Implement proper authentication and session management"
+        assigned_to: "backend_developer"
+        estimated_time_minutes: 120
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "auth_fix_description"
+            prompt: "Description of authentication fixes"
+          - type: "boolean"
+            name: "auth_fix_tested"
+            prompt: "Authentication fix tested?"
+
+      - id: "rem_002"
+        step: "Implement proper authorization checks"
+        description: "Add/fix authorization logic for all endpoints"
+        assigned_to: "backend_developer"
+        estimated_time_minutes: 90
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "authorization_implementation"
+            prompt: "Authorization implementation details"
+
+      - id: "rem_003"
+        step: "Add input validation and sanitization"
+        description: "Implement comprehensive input validation"
+        assigned_to: "backend_developer"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "validation_implementation"
+            prompt: "Input validation implementation details"
+
+      - id: "rem_004"
+        step: "Implement data filtering"
+        description: "Ensure API responses only return necessary data"
+        assigned_to: "backend_developer"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "data_filtering_details"
+            prompt: "Data filtering implementation"
+
+      - id: "rem_005"
+        step: "Deploy permanent rate limiting"
+        description: "Implement production-ready rate limiting solution"
+        assigned_to: "infrastructure_admin"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "rate_limiting_solution"
+            prompt: "Rate limiting solution deployed"
+
+      - id: "rem_006"
+        step: "Implement API security testing"
+        description: "Add automated security testing to CI/CD pipeline"
+        assigned_to: "api_security_analyst"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "security_testing_tools"
+            prompt: "API security testing tools implemented"
+
+      - id: "rem_007"
+        step: "Create API security documentation"
+        description: "Document secure API usage patterns"
+        assigned_to: "backend_developer"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "boolean"
+            name: "documentation_created"
+            prompt: "API security documentation created?"
+
+      - id: "rem_008"
+        step: "Rotate all API keys organization-wide"
+        description: "Proactive rotation of all API credentials"
+        assigned_to: "api_security_analyst"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "boolean"
+            name: "organization_key_rotation"
+            prompt: "Organization-wide key rotation complete?"
+
+  closure:
+    description: "Final documentation and API security improvements"
+    primary_role: "incident_commander"
+
+    checklist:
+      - id: "close_001"
+        step: "Document vulnerability details"
+        description: "Create comprehensive vulnerability report"
+        assigned_to: "api_security_analyst"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "vulnerability_report"
+            prompt: "Complete vulnerability documentation"
+
+      - id: "close_002"
+        step: "Create incident timeline"
+        description: "Document attack timeline and response actions"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete incident timeline"
+
+      - id: "close_003"
+        step: "Update API security standards"
+        description: "Incorporate lessons learned into API development standards"
+        assigned_to: "backend_developer"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "standards_updates"
+            prompt: "Updates to API security standards"
+
+      - id: "close_004"
+        step: "Schedule API security training"
+        description: "Plan training for developers on secure API development"
+        assigned_to: "api_security_analyst"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "training_scheduled"
+            prompt: "API security training scheduled?"
+
+# Risk Assessment Criteria
+risk_factors:
+  critical_risk:
+    - data_exfiltrated: "yes"
+    - api_keys_compromised: true
+    - authorization_bypassed: true
+    - sensitive_endpoints_accessed: "yes"
+
+  high_risk:
+    - data_exposed: true
+    - rate_limiting_bypassed: "yes"
+    - injection_vulnerability_found: true
+
+  medium_risk:
+    - attack_ongoing: true
+    - business_logic_abused: true
+
+  low_risk:
+    - attack_ongoing: false
+    - rate_limiting_effective: true
+
+# Escalation Criteria
+escalation:
+  immediate:
+    criteria:
+      - "Sensitive data exfiltration confirmed"
+      - "Mass API key compromise"
+      - "Authentication bypass affecting all users"
+      - "Injection vulnerability with database access"
+    notify_roles:
+      - "incident_commander"
+      - "api_security_analyst"
+      - "backend_developer"
+    additional_roles_required:
+      - "ciso"
+      - "cto"
+      - "data_protection_officer"
+
+  standard:
+    criteria:
+      - "Limited data exposure"
+      - "Rate limiting bypass"
+      - "Business logic abuse"
+    notify_roles:
+      - "incident_commander"
+      - "api_security_analyst"
+
+  low_priority:
+    criteria:
+      - "Attack blocked by API gateway"
+      - "No data exposure detected"
+    notify_roles:
+      - "api_security_analyst"

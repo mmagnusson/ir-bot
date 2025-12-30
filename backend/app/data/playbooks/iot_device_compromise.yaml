@@ -1,0 +1,391 @@
+# IoT Device Compromise Incident Response Playbook
+# Handles compromised IoT devices, botnets, and smart device attacks
+
+incident_type: iot_device_compromise
+
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads IoT security response"
+    required: true
+
+  iot_security_analyst:
+    name: "IoT Security Analyst"
+    description: "Investigates IoT device compromises"
+    required: true
+
+  network_security_engineer:
+    name: "Network Security Engineer"
+    description: "Implements network segmentation and controls"
+    required: true
+
+  facilities_coordinator:
+    name: "Facilities Coordinator"
+    description: "Coordinates physical access to devices"
+    required: false
+
+phases:
+  intake:
+    description: "Initial IoT compromise assessment"
+    primary_role: "incident_commander"
+    handoff_to: "iot_security_analyst"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      checklist_completion_threshold: 100
+
+    required_fields:
+      - device_type
+      - device_count
+      - compromise_method
+      - time_of_detection
+
+    checklist:
+      - id: "intake_001"
+        step: "Verify IoT compromise classification"
+        description: "Confirm IoT device compromise"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "classification_rationale"
+            prompt: "Evidence of IoT compromise"
+
+      - id: "intake_002"
+        step: "Identify compromised device types"
+        description: "Categorize affected IoT devices"
+        assigned_to: "iot_security_analyst"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "device_categories"
+            prompt: "Device types (cameras, sensors, smart devices, etc.)"
+
+      - id: "intake_003"
+        step: "Quantify affected devices"
+        description: "Count total compromised devices"
+        assigned_to: "iot_security_analyst"
+        estimated_time_minutes: 20
+        evidence_required:
+          - type: "number"
+            name: "total_compromised_devices"
+            prompt: "Total number of compromised devices"
+
+      - id: "intake_004"
+        step: "Assess network segmentation"
+        description: "Check if IoT devices are segmented from corporate network"
+        assigned_to: "network_security_engineer"
+        estimated_time_minutes: 15
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "iot_network_segmented"
+            prompt: "Are IoT devices on separate network?"
+
+  investigation:
+    description: "Analyze IoT compromise and impact"
+    primary_role: "iot_security_analyst"
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 85
+
+    sla:
+      target_completion_hours: 6
+      escalation_threshold_hours: 8
+
+    checklist:
+      - id: "inv_001"
+        step: "Analyze device traffic patterns"
+        description: "Review network traffic from compromised devices"
+        assigned_to: "iot_security_analyst"
+        estimated_time_minutes: 60
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "traffic_analysis"
+            prompt: "Suspicious traffic patterns identified"
+
+      - id: "inv_002"
+        step: "Check for botnet activity"
+        description: "Look for C2 communications and DDoS participation"
+        assigned_to: "iot_security_analyst"
+        estimated_time_minutes: 45
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "botnet_detected"
+            prompt: "Is botnet activity detected?"
+          - type: "text"
+            name: "c2_servers"
+            prompt: "C2 server addresses if identified"
+            optional: true
+
+      - id: "inv_003"
+        step: "Verify default credentials usage"
+        description: "Check if default passwords were exploited"
+        assigned_to: "iot_security_analyst"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "default_creds_used"
+            prompt: "Were default credentials used?"
+
+      - id: "inv_004"
+        step: "Analyze firmware for backdoors"
+        description: "Extract and analyze device firmware"
+        assigned_to: "iot_security_analyst"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "boolean"
+            name: "firmware_backdoor"
+            prompt: "Was firmware backdoor found?"
+
+      - id: "inv_005"
+        step: "Check for network breaches"
+        description: "Determine if devices were used to pivot to corporate network"
+        assigned_to: "network_security_engineer"
+        estimated_time_minutes: 50
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "network_breach"
+            prompt: "Did attackers breach corporate network?"
+
+      - id: "inv_006"
+        step: "Identify compromise method"
+        description: "Determine exploitation technique used"
+        assigned_to: "iot_security_analyst"
+        estimated_time_minutes: 40
+        evidence_required:
+          - type: "text"
+            name: "compromise_technique"
+            prompt: "How were devices compromised?"
+
+  containment:
+    description: "Isolate compromised IoT devices"
+    primary_role: "incident_commander"
+    supporting_roles: ["network_security_engineer", "iot_security_analyst"]
+    handoff_to: "network_security_engineer"
+
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
+
+    sla:
+      target_completion_hours: 2
+      escalation_threshold_hours: 3
+
+    checklist:
+      - id: "cont_001"
+        step: "Isolate IoT network segment"
+        description: "Block IoT devices from internet and corporate network"
+        assigned_to: "network_security_engineer"
+        estimated_time_minutes: 30
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "iot_segment_isolated"
+            prompt: "IoT network segment isolated?"
+
+      - id: "cont_002"
+        step: "Block C2 communications"
+        description: "Add C2 servers to firewall blocklist"
+        assigned_to: "network_security_engineer"
+        estimated_time_minutes: 15
+        conditions:
+          triggers_when:
+            botnet_activity_detected: "yes"
+        evidence_required:
+          - type: "text"
+            name: "c2_addresses_blocked"
+            prompt: "C2 addresses blocked"
+
+      - id: "cont_003"
+        step: "Power off critical compromised devices"
+        description: "Physically disable severely compromised devices"
+        assigned_to: "facilities_coordinator"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "number"
+            name: "devices_powered_off"
+            prompt: "Number of devices powered off"
+
+      - id: "cont_004"
+        step: "Change all IoT device passwords"
+        description: "Reset passwords on all IoT devices immediately"
+        assigned_to: "iot_security_analyst"
+        estimated_time_minutes: 90
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "passwords_changed"
+            prompt: "IoT passwords reset?"
+
+      - id: "cont_005"
+        step: "Disable vulnerable services"
+        description: "Turn off unnecessary services (Telnet, UPnP, etc.)"
+        assigned_to: "iot_security_analyst"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "services_disabled"
+            prompt: "Services disabled on IoT devices"
+
+  remediation:
+    description: "Secure IoT devices long-term"
+    primary_role: "network_security_engineer"
+    supporting_roles: ["iot_security_analyst"]
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 80
+
+    checklist:
+      - id: "rem_001"
+        step: "Implement permanent IoT network segmentation"
+        description: "Create isolated VLAN for all IoT devices"
+        assigned_to: "network_security_engineer"
+        estimated_time_minutes: 120
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "segmentation_design"
+            prompt: "IoT network segmentation architecture"
+
+      - id: "rem_002"
+        step: "Deploy IoT-specific firewall rules"
+        description: "Implement deny-by-default rules for IoT segment"
+        assigned_to: "network_security_engineer"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "firewall_rules"
+            prompt: "IoT firewall rules deployed"
+
+      - id: "rem_003"
+        step: "Update device firmware"
+        description: "Apply latest firmware to all IoT devices"
+        assigned_to: "iot_security_analyst"
+        estimated_time_minutes: 180
+        evidence_required:
+          - type: "number"
+            name: "devices_updated"
+            prompt: "Number of devices with firmware updated"
+
+      - id: "rem_004"
+        step: "Implement IoT device inventory"
+        description: "Create comprehensive inventory of all IoT devices"
+        assigned_to: "iot_security_analyst"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "boolean"
+            name: "inventory_created"
+            prompt: "IoT device inventory created?"
+
+      - id: "rem_005"
+        step: "Deploy IoT security monitoring"
+        description: "Implement monitoring for IoT device behavior"
+        assigned_to: "iot_security_analyst"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "text"
+            name: "monitoring_solution"
+            prompt: "IoT monitoring solution deployed"
+
+      - id: "rem_006"
+        step: "Establish IoT security policies"
+        description: "Create policies for IoT procurement and deployment"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 90
+        evidence_required:
+          - type: "text"
+            name: "iot_policies"
+            prompt: "IoT security policies created"
+
+      - id: "rem_007"
+        step: "Replace unpatachable devices"
+        description: "Retire IoT devices that cannot be secured"
+        assigned_to: "facilities_coordinator"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "number"
+            name: "devices_replaced"
+            prompt: "Number of devices retired/replaced"
+
+  closure:
+    description: "Final documentation and improvements"
+    primary_role: "incident_commander"
+
+    checklist:
+      - id: "close_001"
+        step: "Document IoT compromise details"
+        description: "Create technical report of incident"
+        assigned_to: "iot_security_analyst"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "technical_report"
+            prompt: "Complete documentation"
+
+      - id: "close_002"
+        step: "Create incident timeline"
+        description: "Document compromise and response timeline"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete timeline"
+
+      - id: "close_003"
+        step: "Update IoT security program"
+        description: "Enhance IoT security based on lessons learned"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 60
+        evidence_required:
+          - type: "text"
+            name: "program_improvements"
+            prompt: "IoT security program updates"
+
+risk_factors:
+  critical_risk:
+    - network_segmentation_breached: "yes"
+    - botnet_activity_detected: "yes"
+    - device_count: ">100"
+
+  high_risk:
+    - default_credentials_used: "yes"
+    - firmware_backdoor: "yes"
+
+  medium_risk:
+    - botnet_activity_detected: "yes"
+    - network_segmentation_breached: "no"
+
+  low_risk:
+    - default_credentials_used: "no"
+    - device_count: "<10"
+
+escalation:
+  immediate:
+    criteria:
+      - "IoT devices used to breach corporate network"
+      - "Large-scale botnet participation (>50 devices)"
+      - "Critical infrastructure devices compromised"
+    notify_roles:
+      - "incident_commander"
+      - "network_security_engineer"
+    additional_roles_required:
+      - "ciso"
+
+  standard:
+    criteria:
+      - "Limited IoT compromise detected"
+      - "Devices properly segmented"
+    notify_roles:
+      - "incident_commander"
+      - "iot_security_analyst"

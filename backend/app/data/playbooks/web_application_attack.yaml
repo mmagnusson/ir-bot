@@ -1,0 +1,560 @@
+# Web Application Attack Incident Response Playbook
+# Handles SQLi, XSS, CSRF, RCE, authentication bypass, and other web app attacks
+
+incident_type: web_application_attack
+
+# Role definitions for this incident type
+roles:
+  incident_commander:
+    name: "Incident Commander"
+    description: "Leads response and coordinates teams"
+    required: true
+
+  application_security_analyst:
+    name: "Application Security Analyst"
+    description: "Analyzes attack vectors and vulnerabilities"
+    required: true
+
+  development_team_lead:
+    name: "Development Team Lead"
+    description: "Coordinates code fixes and patches"
+    required: true
+
+  infrastructure_admin:
+    name: "Infrastructure Administrator"
+    description: "Manages WAF, servers, and infrastructure controls"
+    required: true
+
+  database_admin:
+    name: "Database Administrator"
+    description: "Assesses database exposure and implements protections"
+    required: false
+    escalation_triggers: ["data_accessed", "sql_injection"]
+
+phases:
+  intake:
+    description: "Initial web attack assessment and triage"
+    primary_role: "incident_commander"
+    handoff_to: "application_security_analyst"
+
+    handoff_requirements:
+      all_required_fields_complete: true
+      checklist_completion_threshold: 100
+
+    required_fields:
+      - affected_application
+      - attack_type
+      - time_of_detection
+
+    checklist:
+      - id: "intake_001"
+        step: "Verify attack classification"
+        description: "Confirm type of web application attack"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "attack_classification"
+            prompt: "Attack type (SQLi, XSS, CSRF, RCE, auth bypass, etc.)"
+
+      - id: "intake_002"
+        step: "Identify affected application and component"
+        description: "Determine which application and specific component is targeted"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 10
+        dependencies: ["intake_001"]
+        evidence_required:
+          - type: "text"
+            name: "application_url"
+            prompt: "Full URL of affected application"
+          - type: "text"
+            name: "affected_component"
+            prompt: "Specific component/endpoint affected"
+
+      - id: "intake_003"
+        step: "Assess detection source"
+        description: "Determine how attack was detected (WAF, IDS, user report, etc.)"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 5
+        evidence_required:
+          - type: "text"
+            name: "detection_source"
+            prompt: "How was this attack detected?"
+
+      - id: "intake_004"
+        step: "Determine if attack was successful"
+        description: "Initial assessment of whether exploitation occurred"
+        assigned_to: "application_security_analyst"
+        estimated_time_minutes: 15
+        dependencies: ["intake_002"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "exploitation_suspected"
+            prompt: "Is successful exploitation suspected?"
+          - type: "text"
+            name: "exploitation_indicators"
+            prompt: "What indicates successful exploitation?"
+            optional: true
+
+  investigation:
+    description: "Analyze attack and assess impact"
+    primary_role: "application_security_analyst"
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 80
+
+    sla:
+      target_completion_hours: 4
+      escalation_threshold_hours: 6
+      notify_roles: ["incident_commander", "development_team_lead"]
+
+    notifications:
+      - trigger: "step_completed"
+        step_id: "inv_003"
+        notify_roles: ["incident_commander", "database_admin"]
+        message: "Database exposure assessment complete"
+
+    checklist:
+      - id: "inv_001"
+        step: "Collect and analyze attack logs"
+        description: "Gather WAF logs, application logs, and web server logs"
+        assigned_to: "application_security_analyst"
+        estimated_time_minutes: 30
+        critical: true
+        evidence_required:
+          - type: "file"
+            name: "attack_logs"
+            prompt: "Upload relevant log files"
+          - type: "text"
+            name: "attack_pattern"
+            prompt: "Describe the attack pattern observed"
+
+      - id: "inv_002"
+        step: "Identify attack source"
+        description: "Determine attacker IP addresses, user agents, and geographic origin"
+        assigned_to: "application_security_analyst"
+        estimated_time_minutes: 20
+        dependencies: ["inv_001"]
+        evidence_required:
+          - type: "text"
+            name: "attacker_ips"
+            prompt: "List of attacker IP addresses"
+          - type: "text"
+            name: "geographic_origin"
+            prompt: "Geographic location of attack"
+          - type: "text"
+            name: "user_agents"
+            prompt: "User agents used in attack"
+
+      - id: "inv_003"
+        step: "Assess data access or exfiltration"
+        description: "Determine if sensitive data was accessed or stolen"
+        assigned_to: "application_security_analyst"
+        estimated_time_minutes: 45
+        dependencies: ["inv_001"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "data_accessed"
+            prompt: "Was sensitive data accessed?"
+          - type: "text"
+            name: "data_types_affected"
+            prompt: "Types of data potentially accessed"
+            optional: true
+          - type: "text"
+            name: "records_affected_estimate"
+            prompt: "Estimated number of records affected"
+            optional: true
+
+      - id: "inv_004"
+        step: "Identify vulnerable code or configuration"
+        description: "Locate the specific vulnerability that was exploited"
+        assigned_to: "development_team_lead"
+        estimated_time_minutes: 60
+        parallel_group: "root_cause"
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "vulnerability_location"
+            prompt: "File/function/endpoint containing vulnerability"
+          - type: "text"
+            name: "vulnerability_description"
+            prompt: "Technical description of vulnerability"
+          - type: "text"
+            name: "cwe_reference"
+            prompt: "CWE reference (e.g., CWE-89 for SQLi)"
+            optional: true
+
+      - id: "inv_005"
+        step: "Check for backdoors or persistence"
+        description: "Look for web shells, backdoor accounts, or other persistence mechanisms"
+        assigned_to: "application_security_analyst"
+        estimated_time_minutes: 40
+        parallel_group: "root_cause"
+        conditions:
+          triggers_when:
+            successful_exploitation: "yes"
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "backdoor_found"
+            prompt: "Were backdoors or web shells found?"
+          - type: "text"
+            name: "backdoor_details"
+            prompt: "Details of backdoors found"
+            optional: true
+
+      - id: "inv_006"
+        step: "Review WAF effectiveness"
+        description: "Analyze why WAF did not block attack"
+        assigned_to: "infrastructure_admin"
+        estimated_time_minutes: 25
+        evidence_required:
+          - type: "boolean"
+            name: "waf_bypassed"
+            prompt: "Was WAF bypassed?"
+          - type: "text"
+            name: "waf_bypass_method"
+            prompt: "How was WAF bypassed?"
+            optional: true
+
+      - id: "inv_007"
+        step: "Search for other exploitation attempts"
+        description: "Look for similar attacks against other applications"
+        assigned_to: "application_security_analyst"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "other_attempts_found"
+            prompt: "Were other exploitation attempts found?"
+          - type: "number"
+            name: "other_attempts_count"
+            prompt: "Number of other attempts detected"
+            optional: true
+
+  containment:
+    description: "Stop attack and prevent further exploitation"
+    primary_role: "incident_commander"
+    supporting_roles: ["infrastructure_admin", "development_team_lead"]
+    handoff_to: "development_team_lead"
+
+    handoff_requirements:
+      sign_off_required: true
+      all_critical_steps_complete: true
+
+    sla:
+      target_completion_hours: 2
+      escalation_threshold_hours: 3
+      notify_roles: ["incident_commander"]
+
+    checklist:
+      - id: "cont_001"
+        step: "Block attacker IP addresses"
+        description: "Add attacker IPs to firewall/WAF blocklist"
+        assigned_to: "infrastructure_admin"
+        estimated_time_minutes: 10
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "blocked_ips"
+            prompt: "List of IP addresses blocked"
+          - type: "timestamp"
+            name: "block_time"
+            prompt: "When were IPs blocked?"
+
+      - id: "cont_002"
+        step: "Deploy WAF virtual patch"
+        description: "Create WAF rule to block specific attack pattern"
+        assigned_to: "infrastructure_admin"
+        estimated_time_minutes: 20
+        dependencies: ["cont_001"]
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "waf_rule"
+            prompt: "WAF rule deployed to block attack"
+          - type: "boolean"
+            name: "rule_tested"
+            prompt: "Was the WAF rule tested?"
+
+      - id: "cont_003"
+        step: "Disable vulnerable endpoint temporarily"
+        description: "Take vulnerable functionality offline if critical"
+        assigned_to: "infrastructure_admin"
+        estimated_time_minutes: 15
+        conditions:
+          triggers_when:
+            successful_exploitation: "yes"
+        evidence_required:
+          - type: "boolean"
+            name: "endpoint_disabled"
+            prompt: "Was vulnerable endpoint disabled?"
+          - type: "text"
+            name: "business_impact"
+            prompt: "Business impact of disabling endpoint"
+
+      - id: "cont_004"
+        step: "Remove backdoors and web shells"
+        description: "Delete any attacker-placed backdoors or malicious code"
+        assigned_to: "application_security_analyst"
+        estimated_time_minutes: 30
+        conditions:
+          triggers_when:
+            backdoor_found: true
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "backdoors_removed"
+            prompt: "All backdoors removed?"
+          - type: "number"
+            name: "backdoors_removed_count"
+            prompt: "Number of backdoors removed"
+
+      - id: "cont_005"
+        step: "Reset compromised credentials"
+        description: "Force reset of any compromised user or admin credentials"
+        assigned_to: "infrastructure_admin"
+        estimated_time_minutes: 20
+        conditions:
+          triggers_when:
+            data_accessed: "yes"
+        evidence_required:
+          - type: "boolean"
+            name: "credentials_reset"
+            prompt: "Compromised credentials reset?"
+          - type: "number"
+            name: "accounts_reset_count"
+            prompt: "Number of accounts reset"
+
+      - id: "cont_006"
+        step: "Enable enhanced application monitoring"
+        description: "Increase logging verbosity and implement runtime protection"
+        assigned_to: "development_team_lead"
+        estimated_time_minutes: 25
+        evidence_required:
+          - type: "boolean"
+            name: "enhanced_monitoring_enabled"
+            prompt: "Enhanced monitoring deployed?"
+
+  remediation:
+    description: "Fix vulnerability and restore security"
+    primary_role: "development_team_lead"
+    supporting_roles: ["application_security_analyst", "database_admin"]
+    handoff_to: "incident_commander"
+
+    handoff_requirements:
+      sign_off_required: true
+      checklist_completion_threshold: 90
+
+    sla:
+      target_completion_hours: 24
+      escalation_threshold_hours: 48
+      notify_roles: ["incident_commander", "development_team_lead"]
+
+    checklist:
+      - id: "rem_001"
+        step: "Develop and test code fix"
+        description: "Write secure code to remediate vulnerability"
+        assigned_to: "development_team_lead"
+        estimated_time_minutes: 180
+        critical: true
+        evidence_required:
+          - type: "text"
+            name: "fix_description"
+            prompt: "Description of code fix"
+          - type: "boolean"
+            name: "fix_tested"
+            prompt: "Was fix thoroughly tested?"
+          - type: "text"
+            name: "test_results"
+            prompt: "Summary of testing results"
+
+      - id: "rem_002"
+        step: "Conduct security code review"
+        description: "Review fix for security and completeness"
+        assigned_to: "application_security_analyst"
+        estimated_time_minutes: 60
+        dependencies: ["rem_001"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "security_review_passed"
+            prompt: "Did fix pass security review?"
+          - type: "text"
+            name: "review_findings"
+            prompt: "Any findings from security review"
+            optional: true
+
+      - id: "rem_003"
+        step: "Deploy patch to production"
+        description: "Deploy the security fix to production environment"
+        assigned_to: "development_team_lead"
+        estimated_time_minutes: 45
+        dependencies: ["rem_002"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "patch_deployed"
+            prompt: "Patch deployed to production?"
+          - type: "timestamp"
+            name: "deployment_time"
+            prompt: "When was patch deployed?"
+
+      - id: "rem_004"
+        step: "Verify fix effectiveness"
+        description: "Test that vulnerability is fully remediated"
+        assigned_to: "application_security_analyst"
+        estimated_time_minutes: 30
+        dependencies: ["rem_003"]
+        critical: true
+        evidence_required:
+          - type: "boolean"
+            name: "vulnerability_fixed"
+            prompt: "Vulnerability confirmed fixed?"
+          - type: "text"
+            name: "verification_method"
+            prompt: "How was fix verified?"
+
+      - id: "rem_005"
+        step: "Scan for similar vulnerabilities"
+        description: "Conduct security scan for similar issues in other code"
+        assigned_to: "application_security_analyst"
+        estimated_time_minutes: 120
+        evidence_required:
+          - type: "boolean"
+            name: "scan_completed"
+            prompt: "Security scan completed?"
+          - type: "text"
+            name: "scan_findings"
+            prompt: "Summary of scan findings"
+
+      - id: "rem_006"
+        step: "Update WAF rules permanently"
+        description: "Implement permanent WAF protections for this attack type"
+        assigned_to: "infrastructure_admin"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "permanent_waf_rules"
+            prompt: "Permanent WAF rules implemented"
+
+      - id: "rem_007"
+        step: "Restore affected data if needed"
+        description: "Restore any corrupted or modified data from backups"
+        assigned_to: "database_admin"
+        estimated_time_minutes: 90
+        conditions:
+          triggers_when:
+            data_modified: true
+        evidence_required:
+          - type: "boolean"
+            name: "data_restored"
+            prompt: "Data restored from backups?"
+          - type: "text"
+            name: "restoration_details"
+            prompt: "Details of data restoration"
+
+  closure:
+    description: "Final documentation and improvements"
+    primary_role: "incident_commander"
+
+    checklist:
+      - id: "close_001"
+        step: "Document vulnerability details"
+        description: "Create comprehensive vulnerability report"
+        assigned_to: "application_security_analyst"
+        estimated_time_minutes: 45
+        evidence_required:
+          - type: "text"
+            name: "vulnerability_report"
+            prompt: "Complete vulnerability description and remediation"
+
+      - id: "close_002"
+        step: "Create incident timeline"
+        description: "Document attack timeline from initial detection to closure"
+        assigned_to: "incident_commander"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "text"
+            name: "incident_timeline"
+            prompt: "Complete incident timeline"
+
+      - id: "close_003"
+        step: "Update secure coding standards"
+        description: "Add lessons learned to development guidelines"
+        assigned_to: "development_team_lead"
+        estimated_time_minutes: 40
+        evidence_required:
+          - type: "text"
+            name: "coding_standards_updates"
+            prompt: "Updates made to coding standards"
+
+      - id: "close_004"
+        step: "Schedule security training"
+        description: "Plan training for developers on preventing this attack type"
+        assigned_to: "application_security_analyst"
+        estimated_time_minutes: 30
+        evidence_required:
+          - type: "boolean"
+            name: "training_scheduled"
+            prompt: "Security training scheduled?"
+          - type: "text"
+            name: "training_topics"
+            prompt: "Topics to be covered in training"
+
+# Risk Assessment Criteria
+risk_factors:
+  critical_risk:
+    - attack_type: "remote_code_execution"
+    - data_accessed: "yes"
+    - backdoor_found: true
+
+  high_risk:
+    - successful_exploitation: "yes"
+    - attack_type: "sql_injection"
+    - waf_bypassed: "yes"
+
+  medium_risk:
+    - exploitation_suspected: true
+    - attack_type: "xss"
+    - attack_type: "csrf"
+
+  low_risk:
+    - successful_exploitation: "no"
+    - waf_blocked_attack: true
+
+# Escalation Criteria
+escalation:
+  immediate:
+    criteria:
+      - "Remote code execution confirmed"
+      - "Sensitive data exfiltration confirmed"
+      - "Backdoor or web shell deployed"
+      - "Database compromise suspected"
+    notify_roles:
+      - "incident_commander"
+      - "development_team_lead"
+      - "database_admin"
+    additional_roles_required:
+      - "ciso"
+      - "cto"
+
+  standard:
+    criteria:
+      - "Successful exploitation but no data access"
+      - "WAF bypass detected"
+      - "Multiple applications affected"
+    notify_roles:
+      - "incident_commander"
+      - "application_security_analyst"
+
+  low_priority:
+    criteria:
+      - "Attack blocked by WAF"
+      - "Unsuccessful exploitation attempt"
+    notify_roles:
+      - "application_security_analyst"

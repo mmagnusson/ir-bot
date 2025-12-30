@@ -6,7 +6,12 @@
       "Bash(python test_classifier.py:*)",
       "Bash(python -m uvicorn:*)",
       "Bash(npm run dev:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(timeout:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(curl:*)",
+      "Bash(tasklist:*)"
     ]
   }
 }
