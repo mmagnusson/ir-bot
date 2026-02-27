@@ -3,7 +3,7 @@ Incident API Endpoints
 """
 
 from fastapi import APIRouter, HTTPException, Depends
-from typing import Dict, List
+from typing import List
 import uuid
 from datetime import datetime
 
@@ -14,18 +14,29 @@ from ..models.incident import (
     IncidentSummaryExport
 )
 from ..services.decision_logic import DecisionGuardrails
+from ..db.repository import IncidentRepository
+from ..dependencies import get_repository
 
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
-
-# In-memory storage for MVP (use database in production)
-incidents_db: Dict[str, IncidentState] = {}
 
 # Initialize services
 guardrails = DecisionGuardrails()
 
 
+async def _get_incident_or_404(
+    incident_id: str, repo: IncidentRepository
+) -> IncidentState:
+    incident = await repo.get(incident_id)
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    return incident
+
+
 @router.post("/", response_model=IncidentState)
-async def create_incident(request: IncidentCreateRequest):
+async def create_incident(
+    request: IncidentCreateRequest,
+    repo: IncidentRepository = Depends(get_repository),
+):
     """Create a new incident"""
     incident_id = str(uuid.uuid4())
 
@@ -90,26 +101,27 @@ async def create_incident(request: IncidentCreateRequest):
     if not is_valid:
         raise HTTPException(status_code=400, detail=f"Validation errors: {errors}")
 
-    incidents_db[incident_id] = incident
+    await repo.create(incident)
     return incident
 
 
 @router.get("/{incident_id}", response_model=IncidentState)
-async def get_incident(incident_id: str):
+async def get_incident(
+    incident_id: str,
+    repo: IncidentRepository = Depends(get_repository),
+):
     """Get incident by ID"""
-    if incident_id not in incidents_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
-
-    return incidents_db[incident_id]
+    return await _get_incident_or_404(incident_id, repo)
 
 
 @router.put("/{incident_id}", response_model=IncidentState)
-async def update_incident(incident_id: str, request: IncidentUpdateRequest):
+async def update_incident(
+    incident_id: str,
+    request: IncidentUpdateRequest,
+    repo: IncidentRepository = Depends(get_repository),
+):
     """Update incident with new information"""
-    if incident_id not in incidents_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
-
-    incident = incidents_db[incident_id]
+    incident = await _get_incident_or_404(incident_id, repo)
 
     # Update type-specific data fields
     if request.phishing_data:
@@ -172,19 +184,19 @@ async def update_incident(incident_id: str, request: IncidentUpdateRequest):
     if not is_valid:
         raise HTTPException(status_code=400, detail=f"Validation errors: {errors}")
 
-    incidents_db[incident_id] = incident
+    await repo.save(incident)
     return incident
 
 
 @router.get("/{incident_id}/export", response_model=IncidentSummaryExport)
-async def export_incident_summary(incident_id: str):
+async def export_incident_summary(
+    incident_id: str,
+    repo: IncidentRepository = Depends(get_repository),
+):
     """
     Generate final incident summary for export
     """
-    if incident_id not in incidents_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
-
-    incident = incidents_db[incident_id]
+    incident = await _get_incident_or_404(incident_id, repo)
 
     # Build summary from incident data (no AI)
     summary_parts = [
@@ -238,17 +250,20 @@ async def export_incident_summary(incident_id: str):
 
 
 @router.get("/", response_model=List[IncidentState])
-async def list_incidents():
+async def list_incidents(
+    repo: IncidentRepository = Depends(get_repository),
+):
     """List all incidents"""
-    return list(incidents_db.values())
+    return await repo.list_all()
 
 
 @router.delete("/{incident_id}")
-async def delete_incident(incident_id: str):
+async def delete_incident(
+    incident_id: str,
+    repo: IncidentRepository = Depends(get_repository),
+):
     """Delete an incident (for testing)"""
-    if incident_id not in incidents_db:
+    deleted = await repo.delete(incident_id)
+    if not deleted:
         raise HTTPException(status_code=404, detail="Incident not found")
-
-    del incidents_db[incident_id]
     return {"message": "Incident deleted"}
-

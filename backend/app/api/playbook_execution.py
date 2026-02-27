@@ -5,9 +5,8 @@ REST API for playbook-driven incident response workflow.
 Provides endpoints for step management, role assignments, and phase handoffs.
 """
 
-from fastapi import APIRouter, HTTPException
-from typing import Dict, List
-from datetime import datetime
+from fastapi import APIRouter, HTTPException, Depends
+from typing import List
 
 from ..models.incident import (
     StepUpdateRequest, RoleAssignmentRequest, PhaseHandoffRequest,
@@ -15,7 +14,9 @@ from ..models.incident import (
     EvidenceItem
 )
 from ..services.playbook_engine import PlaybookEngine
-from .incidents import incidents_db  # Import shared incident storage
+from ..db.repository import IncidentRepository
+from ..dependencies import get_repository
+from .incidents import _get_incident_or_404
 
 router = APIRouter(prefix="/api/incidents/{incident_id}/playbook", tags=["playbook"])
 
@@ -24,64 +25,45 @@ playbook_engine = PlaybookEngine()
 
 
 @router.get("/phases")
-async def get_incident_phases(incident_id: str):
+async def get_incident_phases(
+    incident_id: str,
+    repo: IncidentRepository = Depends(get_repository),
+):
     """
     Get all phases with their metadata for this incident
-
-    Returns phase information including:
-    - Phase description
-    - Primary role
-    - SLA targets
-    - Execution status
     """
-    if incident_id not in incidents_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
-
-    incident = incidents_db[incident_id]
+    incident = await _get_incident_or_404(incident_id, repo)
     phases = playbook_engine.get_phases_for_incident(incident)
-
-    # Update incident in database
-    incidents_db[incident_id] = incident
-
+    await repo.save(incident)
     return phases
 
 
 @router.get("/phases/{phase_name}/steps")
-async def get_phase_steps(incident_id: str, phase_name: str):
+async def get_phase_steps(
+    incident_id: str,
+    phase_name: str,
+    repo: IncidentRepository = Depends(get_repository),
+):
     """
     Get all steps for a specific phase with execution status
-
-    Returns list of steps with:
-    - Step metadata (description, time estimate, etc.)
-    - Execution status
-    - Dependencies
-    - Evidence requirements
-    - Whether step applies to this incident
     """
-    if incident_id not in incidents_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
-
-    incident = incidents_db[incident_id]
+    incident = await _get_incident_or_404(incident_id, repo)
     steps = playbook_engine.get_phase_steps(incident, phase_name)
-
-    # Update incident in database
-    incidents_db[incident_id] = incident
-
+    await repo.save(incident)
     return steps
 
 
 @router.post("/steps/{step_id}/start")
-async def start_step(incident_id: str, step_id: str, assigned_user: str):
+async def start_step(
+    incident_id: str,
+    step_id: str,
+    assigned_user: str,
+    repo: IncidentRepository = Depends(get_repository),
+):
     """
     Mark a step as started
-
-    Checks dependencies before allowing step to start.
-    Records start time and assigned user.
     """
-    if incident_id not in incidents_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
-
-    incident = incidents_db[incident_id]
+    incident = await _get_incident_or_404(incident_id, repo)
 
     # Check dependencies
     can_start, reason = playbook_engine.check_step_dependencies(incident, step_id)
@@ -90,11 +72,8 @@ async def start_step(incident_id: str, step_id: str, assigned_user: str):
 
     # Start the step
     updated = playbook_engine.start_step(incident, step_id, assigned_user)
-    incidents_db[incident_id] = updated
-
-    # Trigger notification
     playbook_engine.trigger_notifications(updated, "step_started", step_id)
-    incidents_db[incident_id] = updated
+    await repo.save(updated)
 
     return {
         "message": "Step started",
@@ -103,30 +82,24 @@ async def start_step(incident_id: str, step_id: str, assigned_user: str):
 
 
 @router.put("/steps/{step_id}")
-async def update_step(incident_id: str, step_id: str, request: StepUpdateRequest):
+async def update_step(
+    incident_id: str,
+    step_id: str,
+    request: StepUpdateRequest,
+    repo: IncidentRepository = Depends(get_repository),
+):
     """
     Update step status and add evidence
-
-    Allows updating:
-    - Status (in_progress, blocked, completed, skipped)
-    - Assigned user
-    - Notes
-    - Blocked reason
-    - Evidence items
     """
-    if incident_id not in incidents_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
-
-    incident = incidents_db[incident_id]
+    incident = await _get_incident_or_404(incident_id, repo)
 
     try:
         updated = playbook_engine.update_step(incident, request)
-        incidents_db[incident_id] = updated
 
-        # Trigger notifications if step completed
         if request.status == StepStatus.COMPLETED:
             playbook_engine.trigger_notifications(updated, "step_completed", step_id)
-            incidents_db[incident_id] = updated
+
+        await repo.save(updated)
 
         return {
             "message": "Step updated",
@@ -137,30 +110,21 @@ async def update_step(incident_id: str, step_id: str, request: StepUpdateRequest
 
 
 @router.post("/steps/{step_id}/evidence")
-async def add_evidence(incident_id: str, step_id: str, evidence: List[EvidenceItem]):
+async def add_evidence(
+    incident_id: str,
+    step_id: str,
+    evidence: List[EvidenceItem],
+    repo: IncidentRepository = Depends(get_repository),
+):
     """
     Add evidence items to a step
-
-    Evidence can include:
-    - Text notes
-    - File references
-    - Boolean flags
-    - Numeric values
-    - Timestamps
-    - URLs
     """
-    if incident_id not in incidents_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
-
-    incident = incidents_db[incident_id]
+    incident = await _get_incident_or_404(incident_id, repo)
 
     try:
         updated = playbook_engine.add_evidence_to_step(incident, step_id, evidence)
-        incidents_db[incident_id] = updated
-
-        # Trigger notification
         playbook_engine.trigger_notifications(updated, "evidence_uploaded", step_id)
-        incidents_db[incident_id] = updated
+        await repo.save(updated)
 
         return {"message": "Evidence added", "evidence_count": len(evidence)}
     except ValueError as e:
@@ -168,21 +132,18 @@ async def add_evidence(incident_id: str, step_id: str, evidence: List[EvidenceIt
 
 
 @router.post("/roles/assign")
-async def assign_role(incident_id: str, request: RoleAssignmentRequest):
+async def assign_role(
+    incident_id: str,
+    request: RoleAssignmentRequest,
+    repo: IncidentRepository = Depends(get_repository),
+):
     """
     Assign a user to a role
-
-    Creates or updates role assignment with timestamp.
-    Role assignments help track who is responsible for which aspects
-    of the incident response.
     """
-    if incident_id not in incidents_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
-
-    incident = incidents_db[incident_id]
+    incident = await _get_incident_or_404(incident_id, repo)
 
     updated = playbook_engine.assign_role(incident, request.role_name, request.assigned_user)
-    incidents_db[incident_id] = updated
+    await repo.save(updated)
 
     return {
         "message": f"User {request.assigned_user} assigned to role {request.role_name}",
@@ -191,16 +152,14 @@ async def assign_role(incident_id: str, request: RoleAssignmentRequest):
 
 
 @router.get("/roles")
-async def get_role_assignments(incident_id: str):
+async def get_role_assignments(
+    incident_id: str,
+    repo: IncidentRepository = Depends(get_repository),
+):
     """
     Get all role assignments for this incident
-
-    Returns dictionary of role_name -> assignment info
     """
-    if incident_id not in incidents_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
-
-    incident = incidents_db[incident_id]
+    incident = await _get_incident_or_404(incident_id, repo)
     return incident.role_assignments
 
 
@@ -208,23 +167,13 @@ async def get_role_assignments(incident_id: str):
 async def initiate_handoff(
     incident_id: str,
     request: PhaseHandoffRequest,
-    initiated_by: str
+    initiated_by: str,
+    repo: IncidentRepository = Depends(get_repository),
 ):
     """
     Initiate a phase handoff
-
-    Checks handoff requirements before allowing transition.
-    Requirements may include:
-    - Minimum checklist completion percentage
-    - All required fields complete
-    - Phase sign-off
-
-    Handoff is not complete until signed off by receiving role.
     """
-    if incident_id not in incidents_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
-
-    incident = incidents_db[incident_id]
+    incident = await _get_incident_or_404(incident_id, repo)
 
     # Check handoff requirements
     can_handoff, requirements = playbook_engine.check_handoff_requirements(
@@ -247,7 +196,7 @@ async def initiate_handoff(
         initiated_by,
         request.handoff_notes
     )
-    incidents_db[incident_id] = updated
+    await repo.save(updated)
 
     return {
         "message": "Handoff initiated",
@@ -257,20 +206,15 @@ async def initiate_handoff(
 
 
 @router.post("/handoff/sign-off")
-async def sign_off_handoff(incident_id: str, request: PhaseSignOffRequest):
+async def sign_off_handoff(
+    incident_id: str,
+    request: PhaseSignOffRequest,
+    repo: IncidentRepository = Depends(get_repository),
+):
     """
     Sign off on a phase handoff
-
-    Completes the phase transition by:
-    - Marking current phase as complete
-    - Recording sign-off
-    - Transitioning to next phase
-    - Initializing next phase execution
     """
-    if incident_id not in incidents_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
-
-    incident = incidents_db[incident_id]
+    incident = await _get_incident_or_404(incident_id, repo)
 
     try:
         updated = playbook_engine.sign_off_handoff(
@@ -278,7 +222,7 @@ async def sign_off_handoff(incident_id: str, request: PhaseSignOffRequest):
             request.signed_off_by,
             request.notes
         )
-        incidents_db[incident_id] = updated
+        await repo.save(updated)
 
         return {
             "message": "Handoff signed off",
@@ -290,20 +234,13 @@ async def sign_off_handoff(incident_id: str, request: PhaseSignOffRequest):
 
 
 @router.get("/dashboard")
-async def get_incident_dashboard(incident_id: str):
+async def get_incident_dashboard(
+    incident_id: str,
+    repo: IncidentRepository = Depends(get_repository),
+):
     """
     Get dashboard view with progress, SLA status, role assignments
-
-    Returns comprehensive dashboard including:
-    - Role assignments
-    - Phase progress with completion percentages
-    - SLA status
-    - Pending handoffs
-    - Recent notifications
     """
-    if incident_id not in incidents_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
-
-    incident = incidents_db[incident_id]
+    incident = await _get_incident_or_404(incident_id, repo)
     dashboard = playbook_engine.build_dashboard(incident)
     return dashboard

@@ -3,14 +3,25 @@ FastAPI Main Application
 Entry point for the IR AI Assistant backend
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api import incidents, playbook_execution
+from .db.database import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+
 
 app = FastAPI(
     title="IR Playbook Management System",
     description="Playbook-driven Incident Response Management System with role-based workflows",
-    version="0.2.0"
+    version="0.2.0",
+    lifespan=lifespan,
 )
 
 # Configure CORS for frontend
