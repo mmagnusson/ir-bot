@@ -1,0 +1,59 @@
+I'll search for existing AI-powered incident response tools that match your requirements.Based on my research, there aren't many **truly mature open-source, AI-powered IR chatbots** that guide you conversationally through incidents the way you're describing. However, there are some promising options and approaches:
+
+## Closest Existing Solutions
+
+**1. Tracecat** (https://www.tracecat.com/)
+- Open-source SOAR platform with AI capabilities
+- Includes "AI runbooks" and case management
+- Workflow automation with Python/YAML integrations
+- **BUT**: Not a conversational chatbot - more of a workflow automation platform with AI enrichment
+
+**2. Shuffle** (https://shuffler.io/)
+- Popular open-source SOAR
+- Playbook automation with visual builder
+- Community-driven with lots of integrations
+- **BUT**: Also focused on automation workflows, not conversational guidance
+
+**3. Catalyst** (GitHub: SecurityBrewery/catalyst)
+- Open-source incident response platform
+- Mentions AI assistant/LLM capabilities
+- Ticket system + automation
+- **BUT**: Limited documentation on the conversational AI aspects
+
+## The Reality
+
+**What's missing**: A true conversational AI chatbot that:
+- Guides you through NIST 800-61 phases interactively
+- Asks clarifying questions based on incident type
+- Prompts for next steps without you having to think about playbooks
+- Works offline/air-gapped for sensitive environments
+
+## My Recommendation: Prototype It
+
+Given your background in cybersecurity and transition to AI engineering, this could be an **excellent portfolio project**:
+
+**Why you should build it:**
+
+1. **Market gap**: The tools that exist are workflow automation platforms, not conversational IR guides
+2. **Your expertise**: You understand IR workflows intimately from daily work
+3. **Technical fit**: Combines your security knowledge with your AI engineering learning goals
+4. **Security considerations**: You can build it with government/regulated environment requirements in mind
+
+**Tech stack suggestion:**
+- **LLM**: Local models via Ollama (Llama 3.1, Mistral) for air-gapped deployments
+- **Framework**: LangChain or LlamaIndex for structured conversations
+- **Backend**: Python + FastAPI
+- **Database**: SQLite or PostgreSQL for case tracking
+- **Playbooks**: YAML/JSON format based on NIST 800-61, SANS IR, MITRE ATT&CK
+
+**Key features to implement:**
+1. Incident type classification (malware, phishing, DDoS, etc.)
+2. Phase-based progression (Preparation → Detection → Containment → Eradication → Recovery → Lessons Learned)
+3. Context retention throughout investigation
+4. Evidence collection prompts
+5. Timeline building
+6. Report generation
+
+**Starting point:** You could fork the IR playbooks from projects like `austinsonger/Incident-Playbook` or `aws-samples/aws-incident-response-playbooks` and convert them into conversational flows.
+
+Want to discuss the architecture approach? This seems like it would align well with both your current work and your AI engineering goals.
